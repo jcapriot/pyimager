@@ -24,10 +24,11 @@ su_filter_lib = library(
     'su_filters',
     'su_filters.c',
     include_directories: su_filter_include,
-    dependencies: [su_dep, par_dep, cwp_dep],
+    dependencies: [su_dep, cwp_dep],
 )
 
 su_filter_dep = declare_dependency(
     include_directories: su_filter_include,
     link_with: su_filter_lib,
+    dependencies: [su_dep, cwp_dep],
 )

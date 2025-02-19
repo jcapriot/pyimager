@@ -31,5 +31,6 @@ par_lib = library(
 
 par_dep = declare_dependency(
     include_directories: par_include_dir,
-    link_with: par_lib
+    link_with: par_lib,
+    dependencies: cwp_dep
 )

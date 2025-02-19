@@ -32,4 +32,5 @@ su_lib = library(
 su_dep = declare_dependency(
     include_directories: su_include_dir,
     link_with: su_lib,
+    dependencies: [cwp_dep, par_dep],
 )
