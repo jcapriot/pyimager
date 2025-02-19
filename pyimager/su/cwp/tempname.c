@@ -3,7 +3,15 @@
 
 /*********************** self documentation **********************/
 
+#ifdef _WIN32
+#include <stdio.h>
+#include <io.h>
+#define fdopen _fdopen
+#define unlink _unlink
+#define close fclose
+#else
 #include <unistd.h> /* unlink, close */
+#endif
 #include "cwp.h"
 
 /*****************************************************************************
