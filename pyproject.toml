@@ -52,3 +52,6 @@ classifiers = [
 
 [project.license]
 file = 'LICENSE.md'
+
+[tool.meson-python.args]
+setup = ['--default-library=static']
