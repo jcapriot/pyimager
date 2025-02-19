@@ -29,7 +29,7 @@ typedef char *cwp_String;
 typedef enum {BADFILETYPE = -1,
         TTY, DISK, DIRECTORY, TAPE, PIPE, FIFO, SOCKET, SYMLINK} FileType;
 
-#if defined(CRAY) || defined(OVERRIDE_CWP_COMPLEX)
+#if defined(CRAY) || defined(OVERRIDE_CWP_COMPLEX) || defined(_WIN32)
 typedef struct _complexStruct { /* complex number */
 	float r,i;
 }  cwp_complex;
