@@ -114,6 +114,9 @@ Credit to John E. Anderson for re-entrant initargs 03/03/94
 
 #include "par.h"
 
+/*  definitions of global variables */
+int xargc; char **xargv;
+
 /* parameter table */
 typedef struct {
 	char *name;		/* external name of parameter	*/

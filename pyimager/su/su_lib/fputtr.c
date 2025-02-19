@@ -288,15 +288,17 @@ void fputtr_internal(FILE *fp, segy *tp, cwp_Bool fixed_length)
 		infoptr->outfp = fp;
 		infoptr->itr = 0;
 
+        /* ignoring file type as we control this from the package
 		switch (infoptr->ftype = filestat(fileno(fp))) {
 		case DIRECTORY:
 			err("%s: segy output can't be a directory", __FILE__);
 		case TTY:
 			err("%s: segy output can't be tty", __FILE__);
 		default:
-			/* the rest are ok */
+			// the rest are ok
 		break;
 		}
+		*/
 
 		/* Sanity check the segy header */
 		infoptr->nsfirst = tp->ns;

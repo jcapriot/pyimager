@@ -399,7 +399,8 @@ int fgettr_internal(FILE *fp, segy *tp, cwp_Bool fixed_length) {
 	infoptr->infp = fp;  /* save FILE * ptr */
 	infoptr->itr = 0;
 	infoptr->ntr = -1;
-	
+
+	/* ignoring file type as we control this from the package
 	switch (infoptr->ftype = filestat(fileno(fp))) {
 	 case DIRECTORY:
 	    err("%s: segy input can't be a directory", __FILE__);
@@ -408,9 +409,10 @@ int fgettr_internal(FILE *fp, segy *tp, cwp_Bool fixed_length) {
 	    err("%s: segy input can't be tty", __FILE__);
 
 	 default:
-	    /* all others are ok */
+	    // all others are ok
 	    break;
 	}
+	*/
 
 /*--------------------------------------------------------------------*\
    Check for the presence of a line header and set a flag if one is

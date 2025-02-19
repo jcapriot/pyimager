@@ -1,9 +1,9 @@
 par_lib_src = [
     'atopkge.c',
-    'docpkge.c',
+     #'docpkge.c',
     'ealloc.c',
     'errpkge.c',
-    'filestat.c',
+    # 'filestat.c',
     'fractal.c',
     'getpars.c',
     #'lincoeff.c',

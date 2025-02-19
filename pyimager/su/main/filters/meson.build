@@ -18,12 +18,6 @@ filter_src = [
     'sutvband.c',
 ]
 
-executable(
-    'sufrac',
-    'sufrac.c',
-    dependencies:[su_dep, par_dep, cwp_dep]
-)
-
 su_filter_include = include_directories('.')
 
 su_filter_lib = library(

@@ -200,8 +200,10 @@ float eatof(char *s);
 double eatod(char *s);
 
 /* file type checking */
+/*
 FileType filestat(int fd);
 char *printstat(int fd);
+*/
 
 /* Hale's modeling code */
 void decodeReflectors (int *nrPtr,
