@@ -103,6 +103,11 @@ CWP: Shuki Ronen, Jack Cohen
 /**************** end self doc ********************************/
 
 #include "par.h"
+#ifdef _WIN32
+#include <stdio.h>
+#define popen _popen
+#define pclose _pclose
+#endif
 
 #define ERROR	NULL
 
