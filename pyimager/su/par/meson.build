@@ -13,7 +13,7 @@ par_lib_src = [
     'rke.c',
     'smooth.c',
     'subcalls.c',
-    'syscalls.c',
+    #'syscalls.c',
     'taup.c',
     'upweik.c',
     'VND.c',

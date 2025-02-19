@@ -108,18 +108,6 @@ void warn (char *fmt, ...);
 void pagedoc (char *sdoc[]);
 void requestdoc (int i, char *sdoc[]);
 
-/* system calls with error trapping */
-int ecreat(char *path, int perms);
-int efork(void);
-int eopen(char *path, int flags, int perms);
-int eclose(int fd);
-int eunlink(char *path);
-off_t elseek(int fd, off_t offset, int origin);
-int epipe(int fd[2]);
-
-ssize_t eread(int fd, char *buf, size_t nbytes);
-ssize_t ewrite(int fd, char *buf, size_t nbytes);
-
 /* system subroutine calls with error trapping */
 FILE *efopen(const char *file, const char *mode);
 FILE *efreopen(const char *file, const char *mode, FILE *stream1);
