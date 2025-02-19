@@ -215,6 +215,9 @@ cdef class SEGYTrace:
     @staticmethod
     cdef SEGYTrace from_trace(segy *trace, bint trace_owner=?)
 
+    @staticmethod
+    cdef SEGYTrace from_file_descriptor(FILE *fd)
+
 cdef class SEGY:
     cdef:
         # For file based collection

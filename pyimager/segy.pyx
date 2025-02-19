@@ -24,11 +24,20 @@ cdef class SEGYTrace:
             self.trace.data = NULL
 
     @staticmethod
-    cdef SEGYTrace from_trace(segy *trace, bint trace_owner=False):
-        cdef SEGYTrace py_trace = SEGYTrace.__new__(SEGYTrace)
-        py_trace.trace = trace[0]
-        py_trace.trace_owner = trace_owner
-        return py_trace
+    cdef SEGYTrace from_trace(segy trace, bint trace_owner=False):
+        cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
+        cy_trace.trace = trace
+        cy_trace.trace_owner = trace_owner
+        return cy_trace
+
+    @staticmethod
+    cdef SEGYTrace from_file_descriptor(FILE *fd):
+        cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
+        cy_trace.trace_owner = True
+        cdef int getter_success = fvgettr(fd, &cy_trace.trace)
+        if not getter_success:
+            raise EOFError("Reached end of fd file.")
+        return cy_trace
 
     def __init__(
         self,
@@ -231,20 +240,22 @@ cdef class SEGY:
         new_segy.file_name = file_name
 
         # get the first trace to set some parameters
-        cdef FILE *fp
-        fp = fopen(new_segy.file_name.encode(), 'rb')
+        cdef:
+            FILE *fd
+            segy trace
+        fd = fopen(new_segy.file_name.encode(), 'rb')
         try:
-            trace = <segy *> malloc(sizeof(segy))
-            has_trace = fgettr(fp, trace)
+            has_trace = fgettr(fd, &trace)
             if not has_trace:
-                free(trace)
+                if trace.data is not NULL:
+                    free(trace.data)
                 raise TypeError("Unable to read first trace.")
             else:
                 new_segy.ntr = trace.ntr
                 new_segy.dt = trace.dt
                 new_segy.ns = trace.ns
         finally:
-            fclose(fp)
+            fclose(fd)
         return new_segy
 
     @classmethod
@@ -270,26 +281,20 @@ cdef class SEGY:
 
     def __iter__(self):
         cdef:
-            segy *trace
+            segy trace
             SEGYTrace cy_trace
             int has_trace
-            FILE *fp = NULL
+            FILE *fd = NULL
 
         if self.on_disk:
-            fp = fopen(self.file_name.encode(), 'rb')
+            fd = fopen(self.file_name.encode(), 'rb')
             try:
-                trace = <segy *> malloc(sizeof(segy))
-                has_trace = fgettr(fp, trace)
-                if not has_trace:
-                    free(trace)
-                while has_trace:
-                    yield SEGYTrace.from_trace(trace, trace_owner=True)
-                    trace = <segy *> malloc(sizeof(segy))
-                    has_trace = fgettr(fp, trace)
-                    if not has_trace:
-                        free(trace)
+                while True:
+                    yield SEGYTrace.from_file_descriptor(fd)
+            except EOFError:
+                pass
             finally:
-                fclose(fp)
+                fclose(fd)
         elif self.iterator:
             for cy_trace in self.iterator:
                 yield cy_trace
@@ -319,7 +324,7 @@ cdef class SEGY:
             FILE *fp = NULL
         try:
             fp = fopen(file_name.encode(), 'wb')
-            for trace in self:
+            for i, trace in enumerate(self):
                 fvputtr(fp, &trace.trace)
 
             self.file_name = file_name
