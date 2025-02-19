@@ -623,6 +623,7 @@ Credits: J.E. Anderson (CSM Mobil Visiting Scientist, 1993)
 /**************** end self doc ********************************/
 
 
+#include <unistd.h>
 #include "VND.h"
 static long total_VND_mem=0;
 

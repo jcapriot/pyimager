@@ -19,7 +19,6 @@
 #include <float.h>
 
 #include <fcntl.h>      /* non-ANSI */
-#include <unistd.h>     /* non-ANSI */
 #include <sys/types.h>  /* non-ANSI */
 
 #ifdef CADDR_T_NOT_DEFINED

@@ -85,6 +85,7 @@ CWP: Shuki Ronen, Jack Cohen
 *************************************************************************/
 /**************** end self doc ********************************/
 
+#include <unistd.h>
 #include "par.h"
 #define ERROR	-1
 

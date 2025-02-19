@@ -53,6 +53,7 @@ Author: Jack K. Cohen, Center for Wave Phenomena
 /**************** end self doc ********************************/
 
 
+#include <unistd.h>
 #include "par.h"
  
 /*  definitions of global variables */

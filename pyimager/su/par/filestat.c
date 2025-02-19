@@ -77,6 +77,7 @@ CWP: Jack Cohen
 #endif
 
 #include <sys/stat.h>
+#include <unistd.h>
 #include "par.h"
 
 
