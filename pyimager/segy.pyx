@@ -5,6 +5,9 @@ from .par cimport initargs
 
 import numpy as np
 
+# This needs to be here for file-based io to work
+# it initializes the xargc and xargv parameters
+# (to nothing because this package handles everything)
 cdef char* argv_placeholder = ''
 initargs(1, &argv_placeholder)
 

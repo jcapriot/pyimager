@@ -1,4 +1,4 @@
 subdir('cwp')
 subdir('par')
-subdir('lib')
+subdir('su_lib')
 subdir('main')
