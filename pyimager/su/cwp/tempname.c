@@ -85,17 +85,23 @@ FILE *temporary_stream (char const * const prefix)
          return NULL;
       }
       strcpy(buffer, prefix);
-      strcat(buffer, "/fileXXXXXX");
    }    
    else {
       buffer = (char*)malloc(11 + 1);
       if (0 == buffer) {
          return NULL;
       }
-      strcpy(buffer, "/fileXXXXXX");
    }
-  
-   if ((tfd = mkstemp(buffer)) == -1 || (tfp = fdopen(tfd, "w+")) == NULL) {
+
+   #ifdef _WIN32
+   strcat(buffer, "\\fileXXXXXX");
+
+   tfd = _mktemp_s(buffer, strlen(buffer) + 1);
+   #else
+   strcat(buffer, "/fileXXXXXX");
+   tfd = mkstemp(buffer);
+   #endif
+   if (tfd == -1 || (tfp = fdopen(tfd, "w+")) == NULL) {
 
 #ifdef TEST
       printf("Temporary filename is %s\n", buffer);
@@ -122,15 +128,26 @@ FILE *temporary_stream (char const * const prefix)
 }
 
 char *temporary_filename(char *prefix) {
+
+	static char name[BUFSIZ];
+	int temp_fd;
+
+	#ifdef _WIN32
+	char *tmp = "cmguiXXXXXX";
+	int template_size = strlen(tmp) + 1;
+
+	temp_fd = _mktemp_s( tmp, template_size );
+
+	#else
 	/* char buffer[L_tmpnam]; */
 	char template_name[]="/tmp/cmguiXXXXXX";
-	int temp_fd;
-	static char name[BUFSIZ];
-        
-	
-	temp_fd=mkstemp(template_name);
+
+    temp_fd=mkstemp(template_name);
         /* [ak] tmpnam is considered unsafe */
-	char *tmp = strrchr(template_name, '/');
+    char *tmp = strrchr(template_name, '/');
+
+    #endif
+
 
 	strcpy(name, prefix);
 	return strcat(name, tmp);
