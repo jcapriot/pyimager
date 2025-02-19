@@ -85,7 +85,11 @@ CWP: Shuki Ronen, Jack Cohen
 *************************************************************************/
 /**************** end self doc ********************************/
 
-#include <unistd.h>
+#ifdef _WIN32
+#include <io.h>
+#else
+#include <unistd.h> /* fork, close, unlink, lseek, pipe, read, write*/
+#endif
 #include "par.h"
 #define ERROR	-1
 

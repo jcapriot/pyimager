@@ -622,8 +622,11 @@ Credits: J.E. Anderson (CSM Mobil Visiting Scientist, 1993)
 ***************************************************************/
 /**************** end self doc ********************************/
 
-
-#include <unistd.h>
+#ifdef _WIN32
+#include <process.h>  /* for getpid()*/
+#else
+#include <unistd.h>  /* for getpid()*/
+#endif
 #include "VND.h"
 static long total_VND_mem=0;
 

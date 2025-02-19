@@ -52,8 +52,12 @@ Author: Jack K. Cohen, Center for Wave Phenomena
 ****************************************************************************/
 /**************** end self doc ********************************/
 
-
-#include <unistd.h>
+#ifdef _WIN32
+#include <io.h>
+#define isatty _isatty
+#else
+#include <unistd.h>  /* isatty */
+#endif
 #include "par.h"
  
 /*  definitions of global variables */
