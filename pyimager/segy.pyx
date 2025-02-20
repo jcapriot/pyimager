@@ -226,12 +226,12 @@ cdef class SEGY:
         self.iterator = None
 
     def __init__(self, trace_data, dt, **kwargs):
-
         n_tr = len(trace_data)
         traces = []
         for trace in trace_data:
             traces.append(SEGYTrace(trace, dt=dt, ntr=n_tr, **kwargs))
         self.traces = traces
+
 
     @classmethod
     def from_file(cls, file_name):
@@ -239,32 +239,27 @@ cdef class SEGY:
         cdef SEGY new_segy = SEGY.__new__(SEGY)
         new_segy.file_name = file_name
 
-        # get the first trace to set some parameters
         cdef:
+            SEGYTrace trace
             FILE *fd
-            segy trace
-        fd = fopen(new_segy.file_name.encode(), 'rb')
+        # get the first trace to set some parameters
+        fd = fopen(file_name.encode(), "rb")
         try:
-            has_trace = fgettr(fd, &trace)
-            if not has_trace:
-                if trace.data is not NULL:
-                    free(trace.data)
-                raise TypeError("Unable to read first trace.")
-            else:
-                new_segy.ntr = trace.ntr
-                new_segy.dt = trace.dt
-                new_segy.ns = trace.ns
+            trace = SEGYTrace.from_file_descriptor(fd)
+            new_segy.ntr = trace.trace.ntr
+            new_segy.dt = trace.trace.dt
+            new_segy.ns = trace.trace.ns
         finally:
             fclose(fd)
         return new_segy
 
-    @classmethod
-    def from_iterator(cls, iterator, ntr, dt, ns):
+    @staticmethod
+    cdef SEGY from_trace_iterator(TraceIterator iterator):
         cdef SEGY new_segy = SEGY.__new__(SEGY)
-        new_segy.ntr = ntr
         new_segy.iterator = iterator
-        new_segy.ns = ns
-        new_segy.dt = dt
+        new_segy.ntr = iterator.handle.ntr
+        new_segy.ns = iterator.handle.ns
+        new_segy.dt = iterator.handle.dt
         return new_segy
 
     @property
@@ -280,38 +275,24 @@ cdef class SEGY:
         return self.traces is not None
 
     def __iter__(self):
-        cdef:
-            segy trace
-            SEGYTrace cy_trace
-            int has_trace
-            FILE *fd = NULL
-
         if self.on_disk:
-            fd = fopen(self.file_name.encode(), 'rb')
-            try:
-                while True:
-                    yield SEGYTrace.from_file_descriptor(fd)
-            except EOFError:
-                pass
-            finally:
-                fclose(fd)
-        elif self.iterator:
-            for cy_trace in self.iterator:
-                yield cy_trace
+            return _FileTraceIterator(self)
         elif self.in_memory:
-            for mem_trace in self.traces:
-                yield mem_trace
+            return TraceIterator(self)
+        elif self.is_iterator:
+            return self.iterator
+        else:
+            raise TypeError('Undefined')
+
+    @property
+    def iter_index(self):
+        return self.i
 
     def to_memory(self):
         if self.in_memory:
             return self
         else:
-            traces = []
-            for trace in self:
-                traces.append(trace)
-            n_traces = len(traces)
-            self.traces = traces
-
+            self.traces = [trace for trace in self]
             self.iterator = None
             self.file_name = ""
             return self
@@ -321,17 +302,59 @@ cdef class SEGY:
             return self
         cdef:
             SEGYTrace trace
-            FILE *fp = NULL
+            FILE *fd
         try:
-            fp = fopen(file_name.encode(), 'wb')
-            for i, trace in enumerate(self):
-                fvputtr(fp, &trace.trace)
+            fd = fopen(file_name.encode(), 'wb')
+            for trace in self:
+                fvputtr(fd, &trace.trace)
 
             self.file_name = file_name
             self.iterator = None
             self.traces = None
         finally:
-            fclose(fp)
+            fclose(fd)
         return self
+
+cdef class TraceIterator:
+
+    def __init__(self, SEGY handle):
+        self.handle = handle
+        self.i = 0
+
+    cdef SEGYTrace next_trace(self):
+        if self.i == self.handle.ntr:
+            raise StopIteration()
+        out = self.handle.traces[self.i]
+        self.i += 1
+        return out
+
+    def __next__(self):
+        return self.next_trace()
+
+cdef class _FileTraceIterator(TraceIterator):
+    cdef:
+        FILE *fd
+
+    def __dealloc__(self):
+        # Ensure the file is close on deallocation
+        if self.fd is not NULL:
+            fclose(self.fd)
+            self.fd = NULL
+
+    def __init__(self, SEGY handle):
+        super().__init__(handle=handle)
+        self.fd = fopen(handle.file_name.encode(), 'rb')
+
+    cdef SEGYTrace next_trace(self):
+        try:
+            out = SEGYTrace.from_file_descriptor(self.fd)
+        except EOFError:
+            if self.i < self.handle.ntr:
+                print("Reached end of file unexpectedly")
+            raise StopIteration()
+        if self.i == self.handle.ntr:
+            raise StopIteration()
+        self.i += 1
+        return out
 
 

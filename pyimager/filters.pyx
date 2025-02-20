@@ -1,19 +1,19 @@
-from .segy cimport segy, SEGYTrace, SEGY
+from .segy cimport segy, SEGYTrace, SEGY, TraceIterator
 from .cwp cimport bfdesign, bfhighpass, bflowpass
 from libc.math cimport sqrt
 
 cdef extern from "su_filters.h":
-    void bfhighpass_trace(int zerophase, int npoles, float f3db, int nt, segy *tr_data);
-    void bflowpass_trace(int zerophase, int npoles, float f3db, int nt, segy *tr_data);
+    void bfhighpass_trace(int zerophase, int npoles, float f3db, segy *tr)
+    void bflowpass_trace(int zerophase, int npoles, float f3db, segy *tr)
 
 def butterworth_bandpass(
         SEGY input,
         low_cut=True,
         high_cut=True,
-        f_stop_low=None, a_stop_low=.05, f_pass_low=None, a_pass_low=0.95,
+        f_stop_low=None, a_stop_low=0.05, f_pass_low=None, a_pass_low=0.95,
         f_stop_high=None, a_stop_high=0.05, f_pass_high=None, a_pass_high=0.95,
-        int n_poles_low=0, f3db_low=0.0, n_poles_high=0, float f3db_high=0.0,
-        bint zerophase=True
+        int n_poles_low=0, f3db_low=None, n_poles_high=0, f3db_high=None,
+        int zerophase=True,
 ):
     cdef:
         float dt = input.dt
@@ -49,9 +49,9 @@ def butterworth_bandpass(
     if high_cut:
         if n_poles_high == 0:
             if f_stop_high is None:
-                f_stop_high = .10 * nyq
+                f_stop_high = .55 * nyq
             if f_pass_high is None:
-                f_pass_high = .15 * nyq
+                f_pass_high = .40 * nyq
 
             fstophi = f_stop_high * dt
             fpasshi = f_pass_high * dt
@@ -64,39 +64,68 @@ def butterworth_bandpass(
         else:
             npoleshi = n_poles_high
             if f3db_high is None:
-                f3db_high = .15 * nyq
+                f3db_high = .40 * nyq
             f3dbhi = f3db_high * dt
 
-    # Low-cut (high pass) filter
-    def trace_iterator():
-        cdef:
-            SEGYTrace trace
-            segy *tr
-        for trace in input:
-            tr = &trace.trace
-            if low_cut:
-                bfhighpass(npoleslo, f3dblo, tr.ns, tr.data, tr.data);
-                if zerophase:
-                    for i in range(tr.ns // 2): # reverse trace in place
-                        tmp = tr.data[i]
-                        tr.data[i] = tr.data[nt-1 - i]
-                        tr.data[nt-1 - i] = tmp
-                    bfhighpass(npoleslo, f3dblo, tr.ns, tr.data, tr.data)
-                    for i in range(tr.ns // 2): # flip trace back
-                        tmp = tr.data[i]
-                        tr.data[i] = tr.data[nt-1 - i]
-                        tr.data[nt-1 - i] = tmp
-            if high_cut:
-                bflowpass(npoleshi, f3dbhi, tr.ns, tr.data, tr.data);
-                if zerophase:
-                    for i in range(tr.ns // 2): # reverse trace in place
-                        tmp = tr.data[i]
-                        tr.data[i] = tr.data[nt-1 - i]
-                        tr.data[nt-1 - i] = tmp
-                    bflowpass(npoleshi, f3dbhi, tr.ns, tr.data, tr.data)
-                    for i in range(tr.ns // 2): # flip trace back
-                        tmp = tr.data[i]
-                        tr.data[i] = tr.data[nt-1 - i]
-                        tr.data[nt-1 - i] = tmp
-            yield trace
-    return SEGY.from_iterator(trace_iterator(), ntr=input.ntr, dt=input.dt, ns=input.ns)
+    iterator = _ButterworthBandpassIter(
+        input, zerophase, low_cut, high_cut, npoleslo, f3dblo, npoleshi, f3dbhi
+    )
+    return SEGY.from_trace_iterator(iterator)
+
+cdef class _ButterworthBandpassIter(TraceIterator):
+    cdef:
+        int zerophase
+        int low_cut, high_cut
+        int npoleslo, npoleshi
+        float f3dblo, f3dbhi
+        TraceIterator iter_in
+
+    def __init__(
+        self, SEGY input, int zerophase, int low_cut, int high_cut, int npoleslo, float f3dblo, int npoleshi, float f3dbhi,
+    ):
+        super().__init__(handle=input)
+        self.iter_in = input.__iter__()
+        self.zerophase = zerophase
+        self.low_cut = low_cut
+        self.high_cut = high_cut
+        self.npoleslo = npoleslo
+        self.npoleshi = npoleshi
+        self.f3dblo = f3dblo
+        self.f3dbhi = f3dbhi
+
+    cdef SEGYTrace next_trace(self):
+        cdef SEGYTrace trace = self.iter_in.next_trace()
+
+        cdef int nt = trace.ns
+        cdef segy *tr = &trace.trace
+        if self.low_cut:
+            # print(self.zerophase, self.npoleslo, self.f3dblo, trace.trace.data)
+            # bfhighpass_trace(self.zerophase, self.npoleslo, 0.061300963163375854, &trace.trace)
+
+            bfhighpass(self.npoleslo, self.f3dblo, nt, tr.data, tr.data)
+            if self.zerophase:
+                for i in range(nt // 2): # reverse trace in place
+                    tmp = tr.data[i]
+                    tr.data[i] = tr.data[nt-1 - i]
+                    tr.data[nt-1 - i] = tmp
+                bfhighpass(self.npoleslo, self.f3dblo, nt, tr.data, tr.data)
+                for i in range(nt // 2): # flip trace back
+                    tmp = tr.data[i]
+                    tr.data[i] = tr.data[nt-1 - i]
+                    tr.data[nt-1 - i] = tmp
+
+        if self.high_cut:
+            # bflowpass_trace(self.zerophase, self.npoleshi, self.f3dbhi, &trace.trace)
+
+            bflowpass(self.npoleshi, self.f3dbhi, nt, tr.data, tr.data)
+            if self.zerophase:
+                for i in range(nt // 2): # reverse trace in place
+                    tmp = tr.data[i]
+                    tr.data[i] = tr.data[nt-1 - i]
+                    tr.data[nt-1 - i] = tmp
+                bflowpass(self.npoleshi, self.f3dbhi, nt, tr.data, tr.data)
+                for i in range(nt // 2): # flip trace back
+                    tmp = tr.data[i]
+                    tr.data[i] = tr.data[nt-1 - i]
+                    tr.data[nt-1 - i] = tmp
+        return trace

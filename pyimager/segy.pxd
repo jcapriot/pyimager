@@ -227,7 +227,8 @@ cdef class SEGY:
         list traces
 
         # For an iterator passthrough
-        object iterator
+        TraceIterator iterator
+        int i
 
         # information that should be common to all internal traces
         int tracl
@@ -310,3 +311,14 @@ cdef class SEGY:
         int ntr
         short mark
         short shortpad
+
+    @staticmethod
+    cdef SEGY from_trace_iterator(TraceIterator iterator)
+
+
+cdef class TraceIterator:
+    cdef:
+        int i
+        SEGY handle
+
+    cdef SEGYTrace next_trace(self)
