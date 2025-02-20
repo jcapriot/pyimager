@@ -1,4 +1,4 @@
-from .segy cimport segy, SEGYTrace, SEGY, TraceIterator
+from .segy cimport segy, SEGYTrace, SEGY, BaseTraceIterator
 from .cwp cimport bfdesign, bfhighpass, bflowpass
 from libc.math cimport sqrt
 
@@ -68,23 +68,23 @@ def butterworth_bandpass(
             f3dbhi = f3db_high * dt
 
     iterator = _ButterworthBandpassIter(
-        input, zerophase, low_cut, high_cut, npoleslo, f3dblo, npoleshi, f3dbhi
+        input.__iter__(), zerophase, low_cut, high_cut, npoleslo, f3dblo, npoleshi, f3dbhi
     )
     return SEGY.from_trace_iterator(iterator)
 
-cdef class _ButterworthBandpassIter(TraceIterator):
+cdef class _ButterworthBandpassIter(BaseTraceIterator):
     cdef:
         int zerophase
         int low_cut, high_cut
         int npoleslo, npoleshi
         float f3dblo, f3dbhi
-        TraceIterator iter_in
+        BaseTraceIterator iter_in
 
     def __init__(
-        self, SEGY input, int zerophase, int low_cut, int high_cut, int npoleslo, float f3dblo, int npoleshi, float f3dbhi,
+        self, BaseTraceIterator iter, int zerophase, int low_cut, int high_cut, int npoleslo, float f3dblo, int npoleshi, float f3dbhi,
     ):
-        super().__init__(handle=input)
-        self.iter_in = input.__iter__()
+        self.iter_in = iter
+        self.n_traces = iter.n_traces
         self.zerophase = zerophase
         self.low_cut = low_cut
         self.high_cut = high_cut
@@ -94,10 +94,11 @@ cdef class _ButterworthBandpassIter(TraceIterator):
         self.f3dbhi = f3dbhi
 
     cdef SEGYTrace next_trace(self):
-        cdef SEGYTrace trace = self.iter_in.next_trace()
 
-        cdef int nt = trace.ns
-        cdef segy *tr = &trace.trace
+        cdef SEGYTrace trace = self.iter_in.next_trace()
+        cdef segy *tr = trace.tr
+
+        cdef int nt = tr.ns
         if self.low_cut:
             # print(self.zerophase, self.npoleslo, self.f3dblo, trace.trace.data)
             # bfhighpass_trace(self.zerophase, self.npoleslo, 0.061300963163375854, &trace.trace)
@@ -128,4 +129,7 @@ cdef class _ButterworthBandpassIter(TraceIterator):
                     tmp = tr.data[i]
                     tr.data[i] = tr.data[nt-1 - i]
                     tr.data[nt-1 - i] = tmp
+
+        # all this is done in-place on the object returned by the iter.next_trace()
+        # so just return it.
         return trace

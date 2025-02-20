@@ -1,3 +1,4 @@
+from dask.sizeof import sizeof
 from libc.stdio cimport FILE, fopen, fclose
 from libc.stdlib cimport malloc, free
 cimport cython
@@ -15,28 +16,39 @@ initargs(1, &argv_placeholder)
 cdef class SEGYTrace:
 
     def __cinit__(self):
+        self.tr = NULL
         self.trace_owner = False
+        self.data_owner = False
 
     def __dealloc__(self):
         # De-allocate if not null and flag is set
-        if self.trace.data is not NULL and self.trace_owner:
-            free(self.trace.data)
-            self.trace.data = NULL
+        if self.tr is not NULL and self.trace_owner:
+            del_trace(self.tr, self.data_owner)
+            self.tr = NULL
 
     @staticmethod
-    cdef SEGYTrace from_trace(segy trace, bint trace_owner=False):
+    cdef SEGYTrace from_trace(segy *tr, bint trace_owner=False, bint data_owner=False):
         cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
-        cy_trace.trace = trace
+        cy_trace.tr = tr
         cy_trace.trace_owner = trace_owner
+        cy_trace.data_owner = data_owner
         return cy_trace
 
     @staticmethod
     cdef SEGYTrace from_file_descriptor(FILE *fd):
+
+        cdef segy *tr = <segy *> malloc(sizeof(segy))
+        if tr is NULL:
+            raise MemoryError("Unable to allocate trace structure.")
+        cdef int getter_success = fvgettr(fd, tr)
+        if not getter_success:
+            del_trace(tr, 1)
+            raise IOError("Unable to read trace from file.")
+
         cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
         cy_trace.trace_owner = True
-        cdef int getter_success = fvgettr(fd, &cy_trace.trace)
-        if not getter_success:
-            raise EOFError("Reached end of fd file.")
+        cy_trace.data_owner = True
+        cy_trace.tr = tr
         return cy_trace
 
     def __init__(
@@ -123,89 +135,96 @@ cdef class SEGYTrace:
         short shortpad=0,
     ):
         self.trace_data = np.require(data, dtype=np.float32, requirements='C')
+        cdef segy *tr = <segy *> malloc(sizeof(segy))
+        if tr is NULL:
+            raise MemoryError("Unable to allocate trace.")
 
-        self.trace.tracl = tracl
-        self.trace.tracr = tracr
-        self.trace.fldr = fldr
-        self.trace.tracf = tracf
-        self.trace.ep = ep
-        self.trace.cdp = cdp
-        self.trace.cdpt = cdpt
-        self.trace.trid = trid
-        self.trace.nvs = nvs
-        self.trace.nhs = nhs
-        self.trace.duse = duse
-        self.trace.offset = offset
-        self.trace.gelev = gelev
-        self.trace.selev = selev
-        self.trace.sdepth = sdepth
-        self.trace.gdel = gdel
-        self.trace.sdel = sdel
-        self.trace.swdep = swdep
-        self.trace.gwdep = gwdep
-        self.trace.scalel = scalel
-        self.trace.scalco = scalco
-        self.trace.sx = sx
-        self.trace.sy = sy
-        self.trace.gx = gx
-        self.trace.gy = gy
-        self.trace.counit = counit
-        self.trace.wevel = wevel
-        self.trace.swevel = swevel
-        self.trace.sut = sut
-        self.trace.gut = gut
-        self.trace.sstat = sstat
-        self.trace.gstat = gstat
-        self.trace.tstat = tstat
-        self.trace.laga = laga
-        self.trace.lagb = lagb
-        self.trace.delrt = delrt
-        self.trace.muts = muts
-        self.trace.mute = mute
-        self.trace.ns = self.trace_data.shape[0]
-        self.trace.dt = dt
-        self.trace.gain = gain
-        self.trace.igc = igc
-        self.trace.igi = igi
-        self.trace.corr = corr
-        self.trace.sfs = sfs
-        self.trace.sfe = sfe
-        self.trace.slen = slen
-        self.trace.styp = styp
-        self.trace.stas = stas
-        self.trace.stae = stae
-        self.trace.tatyp = tatyp
-        self.trace.afilf = afilf
-        self.trace.afils = afils
-        self.trace.nofilf = nofilf
-        self.trace.nofils = nofils
-        self.trace.lcf = lcf
-        self.trace.hcf = hcf
-        self.trace.lcs = lcs
-        self.trace.hcs = hcs
-        self.trace.year = year
-        self.trace.day = day
-        self.trace.hour = hour
-        self.trace.minute = minute
-        self.trace.sec = sec
-        self.trace.timbas = timbas
-        self.trace.trwf = trwf
-        self.trace.grnors = grnors
-        self.trace.grnofr = grnofr
-        self.trace.grnlof = grnlof
-        self.trace.gaps = gaps
-        self.trace.otrav = otrav
-        self.trace.d1 = d1
-        self.trace.f1 = f1
-        self.trace.d2 = d2
-        self.trace.f2 = f2
-        self.trace.ungpow = ungpow
-        self.trace.unscale = unscale
-        self.trace.ntr = ntr
-        self.trace.mark = mark
-        self.trace.shortpad = shortpad
+        tr.tracl = tracl
+        tr.tracr = tracr
+        tr.fldr = fldr
+        tr.tracf = tracf
+        tr.ep = ep
+        tr.cdp = cdp
+        tr.cdpt = cdpt
+        tr.trid = trid
+        tr.nvs = nvs
+        tr.nhs = nhs
+        tr.duse = duse
+        tr.offset = offset
+        tr.gelev = gelev
+        tr.selev = selev
+        tr.sdepth = sdepth
+        tr.gdel = gdel
+        tr.sdel = sdel
+        tr.swdep = swdep
+        tr.gwdep = gwdep
+        tr.scalel = scalel
+        tr.scalco = scalco
+        tr.sx = sx
+        tr.sy = sy
+        tr.gx = gx
+        tr.gy = gy
+        tr.counit = counit
+        tr.wevel = wevel
+        tr.swevel = swevel
+        tr.sut = sut
+        tr.gut = gut
+        tr.sstat = sstat
+        tr.gstat = gstat
+        tr.tstat = tstat
+        tr.laga = laga
+        tr.lagb = lagb
+        tr.delrt = delrt
+        tr.muts = muts
+        tr.mute = mute
+        tr.ns = self.trace_data.shape[0]
+        tr.dt = dt
+        tr.gain = gain
+        tr.igc = igc
+        tr.igi = igi
+        tr.corr = corr
+        tr.sfs = sfs
+        tr.sfe = sfe
+        tr.slen = slen
+        tr.styp = styp
+        tr.stas = stas
+        tr.stae = stae
+        tr.tatyp = tatyp
+        tr.afilf = afilf
+        tr.afils = afils
+        tr.nofilf = nofilf
+        tr.nofils = nofils
+        tr.lcf = lcf
+        tr.hcf = hcf
+        tr.lcs = lcs
+        tr.hcs = hcs
+        tr.year = year
+        tr.day = day
+        tr.hour = hour
+        tr.minute = minute
+        tr.sec = sec
+        tr.timbas = timbas
+        tr.trwf = trwf
+        tr.grnors = grnors
+        tr.grnofr = grnofr
+        tr.grnlof = grnlof
+        tr.gaps = gaps
+        tr.otrav = otrav
+        tr.d1 = d1
+        tr.f1 = f1
+        tr.d2 = d2
+        tr.f2 = f2
+        tr.ungpow = ungpow
+        tr.unscale = unscale
+        tr.ntr = ntr
+        tr.mark = mark
+        tr.shortpad = shortpad
 
-        self.trace.data = &self.trace_data[0]
+        tr.data = &self.trace_data[0]
+
+        self.tr = tr
+        self.trace_owner = True
+        self.trace_data_owner = False
 
     @property
     def ntr(self):
@@ -221,7 +240,7 @@ cdef class SEGYTrace:
 
     @property
     def data(self):
-        return np.asarray(<float[:self.trace.ns]> self.trace.data)
+        return np.asarray(<float[:self.tr.ns]> self.tr.data)
 
 cdef class SEGY:
     def __cinit__(self):
@@ -253,20 +272,16 @@ cdef class SEGY:
         fd = fopen(file_name.encode(), "rb")
         try:
             trace = SEGYTrace.from_file_descriptor(fd)
-            new_segy.ntr = trace.trace.ntr
-            new_segy.dt = trace.trace.dt
-            new_segy.ns = trace.trace.ns
+            new_segy.ntr = trace.tr.ntr
         finally:
             fclose(fd)
         return new_segy
 
     @staticmethod
-    cdef SEGY from_trace_iterator(TraceIterator iterator):
+    cdef SEGY from_trace_iterator(BaseTraceIterator iterator):
         cdef SEGY new_segy = SEGY.__new__(SEGY)
         new_segy.iterator = iterator
-        new_segy.ntr = iterator.handle.ntr
-        new_segy.ns = iterator.handle.ns
-        new_segy.dt = iterator.handle.dt
+        new_segy.ntr = iterator.n_traces
         return new_segy
 
     @property
@@ -283,17 +298,13 @@ cdef class SEGY:
 
     def __iter__(self):
         if self.on_disk:
-            return _FileTraceIterator(self)
+            return _FileTraceIterator(self.file_name.encode(), self.ntr)
         elif self.in_memory:
-            return TraceIterator(self)
+            return _MemoryTraceIterator(self)
         elif self.is_iterator:
             return self.iterator
         else:
             raise TypeError('Undefined')
-
-    @property
-    def iter_index(self):
-        return self.i
 
     def to_memory(self):
         if self.in_memory:
@@ -313,7 +324,7 @@ cdef class SEGY:
         try:
             fd = fopen(file_name.encode(), 'wb')
             for trace in self:
-                fvputtr(fd, &trace.trace)
+                fvputtr(fd, trace.tr)
 
             self.file_name = file_name
             self.iterator = None
@@ -322,46 +333,59 @@ cdef class SEGY:
             fclose(fd)
         return self
 
-cdef class TraceIterator:
 
-    def __init__(self, SEGY handle):
-        self.handle = handle
+cdef class BaseTraceIterator:
+    def __cinit__(self):
         self.i = 0
+        self.n_traces = 0
 
     cdef SEGYTrace next_trace(self):
-        if self.i == self.handle.ntr:
-            raise StopIteration()
-        out = self.handle.traces[self.i]
-        self.i += 1
-        return out
+        raise NotImplementedError(f"cdef next_trace is not implemented on {type(self)}.")
 
     def __next__(self):
         return self.next_trace()
 
-cdef class _FileTraceIterator(TraceIterator):
+
+cdef class _MemoryTraceIterator(BaseTraceIterator):
     cdef:
-        FILE *fd
+        list traces
 
-    def __dealloc__(self):
-        # Ensure the file is close on deallocation
-        if self.fd is not NULL:
-            fclose(self.fd)
-            self.fd = NULL
+    def __init__(self, list traces):
+        self.traces = traces
+        # iterate through to ensure they are all SEGYTraces
+        for trace in self.traces:
+            if not isinstance(trace, SEGYTrace):
+                raise TypeError(f"Every item in trace list must be a SEGYTrace, not a {type(trace)}")
 
-    def __init__(self, SEGY handle):
-        super().__init__(handle=handle)
-        self.fd = fopen(handle.file_name.encode(), 'rb')
+        self.n_traces = len(traces)
 
     cdef SEGYTrace next_trace(self):
-        try:
-            out = SEGYTrace.from_file_descriptor(self.fd)
-        except EOFError:
-            if self.i < self.handle.ntr:
-                print("Reached end of file unexpectedly")
+        if self.i == self.n_traces:
             raise StopIteration()
-        if self.i == self.handle.ntr:
-            raise StopIteration()
+        cdef SEGYTrace out = self.traces[self.i]
         self.i += 1
         return out
 
 
+cdef class _FileTraceIterator(BaseTraceIterator):
+    cdef:
+        FILE *fd
+
+    def __dealloc__(self):
+        # Ensure the file is closed on deletion
+        if self.fd is not NULL:
+            fclose(self.fd)
+            self.fd = NULL
+
+    def __init__(self, bytes file_name, int n_traces):
+        self.fd = fopen(file_name, 'rb')
+        if self.fd is NULL:
+            raise IOError(f"Unable to open {file_name} for reading.")
+        self.n_traces = n_traces
+
+    cdef SEGYTrace next_trace(self):
+        if self.i == self.n_traces:
+            raise StopIteration()
+        cdef SEGYTrace out = SEGYTrace.from_file_descriptor(self.fd)
+        self.i += 1
+        return out

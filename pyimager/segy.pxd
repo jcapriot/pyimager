@@ -90,6 +90,9 @@ cdef extern from "segy.h" nogil:
         short *unass
         float *data
 
+    segy *new_trace(int ns)
+    void del_trace(segy *tp, int del_data)
+
     ctypedef struct hdr:
         pass
 
@@ -208,12 +211,13 @@ cdef extern from "segy.h" nogil:
 @cython.final
 cdef class SEGYTrace:
     cdef:
-        segy trace
+        segy* tr
         bint trace_owner
-        float[::1] trace_data
+        bint data_owner
+        float[::1] trace_data #For holding a reference if it came from python
 
     @staticmethod
-    cdef SEGYTrace from_trace(segy *trace, bint trace_owner=?)
+    cdef SEGYTrace from_trace(segy *trace, bint trace_owner=?, bint data_owner=?)
 
     @staticmethod
     cdef SEGYTrace from_file_descriptor(FILE *fd)
@@ -227,8 +231,7 @@ cdef class SEGY:
         list traces
 
         # For an iterator passthrough
-        TraceIterator iterator
-        int i
+        BaseTraceIterator iterator
 
         # information that should be common to all internal traces
         int tracl
@@ -313,12 +316,12 @@ cdef class SEGY:
         short shortpad
 
     @staticmethod
-    cdef SEGY from_trace_iterator(TraceIterator iterator)
+    cdef SEGY from_trace_iterator(BaseTraceIterator iterator)
 
 
-cdef class TraceIterator:
+cdef class BaseTraceIterator:
     cdef:
         int i
-        SEGY handle
+        int n_traces
 
     cdef SEGYTrace next_trace(self)

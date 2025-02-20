@@ -52,7 +52,7 @@ py.extension_module(
     c_args: cython_c_args,
     install: true,
     subdir: module_path,
-    dependencies : [py_dep, su_dep, cwp_dep, par_dep],
+    dependencies : [py_dep, su_synthetics_dep],
 )
 
 py.extension_module(

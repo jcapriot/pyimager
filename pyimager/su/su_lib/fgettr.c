@@ -19,6 +19,8 @@ Function Prototype:
 int fgettr(FILE *fp, segy *tp);
 int fvgettr(FILE *fp, segy *tp);
 int fgettra(FILE *fp, segy *tp, int itr);
+segy* new_trace(int ns);
+int del_trace(segy *tp);
 
 *****************************************************************************
 Returns:
@@ -400,7 +402,7 @@ int fgettr_internal(FILE *fp, segy *tp, cwp_Bool fixed_length) {
 	infoptr->itr = 0;
 	infoptr->ntr = -1;
 
-	/* ignoring file type as we control this from the package
+	/* ignoring file type as we control this from python
 	switch (infoptr->ftype = filestat(fileno(fp))) {
 	 case DIRECTORY:
 	    err("%s: segy input can't be a directory", __FILE__);
@@ -648,6 +650,23 @@ int fgettra(FILE *fp, segy *tp, int itr)
 }
 
 #endif /* end of XDR choice */
+
+segy* new_trace(int ns){
+    segy *tr = malloc(sizeof( *tr));
+    tr->ns = ns;
+    tr->data = alloc1float(ns);
+    return tr;
+}
+
+void del_trace(segy *tp, int del_data){
+    if((tp != NULL) && del_data){
+        if (tp->data != NULL){
+            free(tp->data);
+        }
+        tp->data = NULL;
+    }
+    free(tp);
+}
  
 /*====================================================================*\
    These functions determine the presence of a SEGY text header based

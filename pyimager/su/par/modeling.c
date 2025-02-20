@@ -43,7 +43,7 @@ typedef struct ReflectorSegmentStruct {
 	float x;	* x coordinate of segment midpoint *
 	float z;	* z coordinate of segment midpoint *
 	float s;	* x component of unit-normal-vector *
-	float c;	* z component of unit-normal-vector *
+	float c;	* z component of unift-normal-vector *
 } ReflectorSegment;
 typedef struct ReflectorStruct {
 	int ns;			* number of reflector segments *
