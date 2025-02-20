@@ -25,6 +25,7 @@ endif
 
 python_sources = [
     '__init__.py',
+    'plotting.py',
 ]
 
 module_path = 'pyimager'

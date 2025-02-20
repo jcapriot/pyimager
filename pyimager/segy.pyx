@@ -216,6 +216,10 @@ cdef class SEGYTrace:
         return self.trace.ns
 
     @property
+    def dt(self):
+        return self.trace.dt
+
+    @property
     def data(self):
         return np.asarray(<float[:self.trace.ns]> self.trace.data)
 
@@ -232,6 +236,9 @@ cdef class SEGY:
             traces.append(SEGYTrace(trace, dt=dt, ntr=n_tr, **kwargs))
         self.traces = traces
 
+    @property
+    def n_trace(self):
+        return self.ntr
 
     @classmethod
     def from_file(cls, file_name):

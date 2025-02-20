@@ -1,19 +1,15 @@
 from pyimager.synthetics import spike
 from pyimager.filters import butterworth_bandpass
-import numpy as np
+from pyimager.plotting import wiggle
 import matplotlib.pyplot as plt
 
-segy = spike()
-segy.to_memory()
+segy = spike().to_memory()
+wiggle(segy)
+plt.show()
 
 segy.to_file('test.segy')
 
-bandpassed = butterworth_bandpass(segy).to_memory()
-for i, trace in enumerate(bandpassed):
-    print(i)
-    print(trace.data)
+bandpassed = butterworth_bandpass(spike(nt=1000)).to_memory()
 
-
-traces = np.asarray([trace.data for trace in bandpassed])
-plt.imshow(traces)
+wiggle(bandpassed)
 plt.show()
