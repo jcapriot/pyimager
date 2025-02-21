@@ -116,21 +116,7 @@ void susynlv_filltrace(
     int nr, Reflector *r, int nt, float dt, float ft
 ){
     float xs, zs, xg, zg;
-    // print input to make sure they're the same?
-    printf("susynlv visible:\n");
-    printf("trace info: %d %d %d %d %d\n", tr->trid, tr->counit, tr->ns, tr->dt, tr->delrt);
-    printf("1: %d %d %d\n", shots, kilounits, tracl);
-    printf("2: %f %d %f\n", fxs, ixsm, dxs);
-    printf("3: %d %f %f %f\n", ixo, xo[0], dxo, fxo);
-    printf("4: %f %f %f\n", dxm, fxm, dxsm);
-    printf("5: %f %f %f\n", v00, dvdx, dvdz);
-    printf("6: %d %d %d\n", ls, er, ob);
-    printf("7: %d %d %d\n", w->lw, nr, r[0].ns);
-    printf("8: %d %f %f\n", nt, dt, ft);
 
-    printf("sizeof %d\n", sizeof(fxs));
-
-    printf("\n");
     /* compute source and receiver coordinates */
     if (shots)
         xs = fxs+ixsm*dxs;

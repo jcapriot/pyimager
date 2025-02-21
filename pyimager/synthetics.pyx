@@ -282,21 +282,6 @@ cdef class _synlvIterator(BaseTraceIterator):
         tr.dt = <unsigned short> (1.0e6*self.dt)
         tr.delrt = <short> (1.0e3*self.ft)
 
-        printf("cython visible:\n")
-        printf("trace info: %d %d %d %d %d\n", tr.trid, tr.counit, tr.ns, tr.dt, tr.delrt)
-        printf("1: %d %d %d\n", self.shots, self.kilounits, self.tracl)
-        printf("2: %f %d %f\n", self.fxs, self.ixsm, self.dxs)
-        printf("3: %d %f %f %f\n", self.ixo, self.xo[0], self.dxo, self.fxo)
-        printf("4: %f %f %f\n", self.dxm, self.fxm, self.dxsm)
-        printf("5: %f %f %f\n", self.v00, self.dvdx, self.dvdz)
-        printf("6: %d %d %d\n", self.ls, self.er, self.ob)
-        printf("7: %d %d %d\n", self.w.lw, self.nr, self.r[0].ns)
-        printf("8: %d %f %f\n", self.ns, self.dt, self.ft)
-
-        printf("sizeof %d\n", sizeof(self.fxs))
-
-        printf("\n")
-
         susynlv_filltrace(
             tr,
             self.shots, self.kilounits, self.tracl,
