@@ -1,4 +1,4 @@
-#ifdef SU_SYNTHETICS_H
+#ifndef SU_SYNTHETICS_H
 #define SU_SYNTHETICS_H
 #include "segy.h"  // segy
 #include "par.h" // Reflector and Wavelet
