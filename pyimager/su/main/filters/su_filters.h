@@ -1,4 +1,4 @@
-#ifdef SUFILTERS_H
+#ifndef SUFILTERS_H
 #define SUFILTERS_H
 #include "segy.h"
 
