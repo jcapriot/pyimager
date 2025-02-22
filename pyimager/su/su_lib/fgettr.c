@@ -368,7 +368,7 @@ int dataread(segy *tp, struct insegyinfo *iptr, cwp_Bool fixed_length)
 {
 	unsigned int nsread = fixed_length?iptr->nsfirst:tp->ns;
 	unsigned int databytes = infoptr->bytesper*nsread;
-    tp->data = realloc1float(tp->data, nsread);
+    tp->data = alloc1float(tp->data, nsread);
 	int nread = (int) efread((char *) (&((tp->data)[0])),1, databytes,
 			   iptr->infp);
 
@@ -568,7 +568,9 @@ int fgettr_internal(FILE *fp, segy *tp, cwp_Bool fixed_length) {
 	    }
 	}
 
+    printf("right here\n");
 	nread += dataread(tp, infoptr, fixed_length);
+	printf("after read here\n");
 
 	if (fixed_length && (tp->ns != infoptr->nsfirst)){
 	 err("%s: on trace #%ld number of samples in header (%d) differs from number for first trace (%d)"

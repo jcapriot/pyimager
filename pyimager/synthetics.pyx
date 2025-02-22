@@ -60,6 +60,7 @@ cdef class _SpikeIterator(BaseTraceIterator):
         tr.dt = self.dt
         tr.offset = self.offset
         tr.tracl = self.i + 1
+        tr.ntr = self.n_traces
         for spike in self.spikes:
             ix, it = spike
             if ix == self.i:
@@ -281,6 +282,7 @@ cdef class _synlvIterator(BaseTraceIterator):
         # tr.ns = self.ns
         tr.dt = <unsigned short> (1.0e6*self.dt)
         tr.delrt = <short> (1.0e3*self.ft)
+        tr.ntr = self.n_traces
 
         susynlv_filltrace(
             tr,

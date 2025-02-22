@@ -6,6 +6,7 @@ def wiggle(segy, ax=None, color='k'):
     if ax is None:
         plt.figure()
         ax = plt.gca()
+        ax.invert_yaxis()
 
     trace_plots = []
     line_plots = []

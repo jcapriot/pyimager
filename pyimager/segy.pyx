@@ -284,6 +284,7 @@ cdef class SEGY:
         for trace in trace_data:
             traces.append(SEGYTrace(trace, dt=dt, ntr=n_tr, **kwargs))
         self.traces = traces
+        self.ntr = len(traces)
 
     @property
     def n_trace(self):
@@ -324,6 +325,10 @@ cdef class SEGY:
     @property
     def in_memory(self):
         return self.traces is not None
+
+    @property
+    def n_traces(self):
+        return self.ntr
 
     def __iter__(self):
         cdef _FileTraceIterator f_iter
@@ -427,6 +432,8 @@ cdef class _FileTraceIterator(BaseTraceIterator):
     cdef SEGYTrace next_trace(self):
         if self.i == self.n_traces:
             raise StopIteration()
+        print("reading in:", self.i, self.n_traces)
         cdef SEGYTrace out = SEGYTrace.from_file_descriptor(self.fd)
+        print(out.data)
         self.i += 1
         return out
