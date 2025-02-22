@@ -4,6 +4,19 @@ subdir('su')
 numpy_nodepr_api = ['-DNPY_NO_DEPRECATED_API=NPY_1_22_API_VERSION']
 np_dep = dependency('numpy')
 
+
+# check for file io options:
+have_fseeko = cc.has_function('fseeko', prefix: '#define _GNU_SOURCE\n#include <stdio.h>')
+have_ftello = cc.has_function('ftello', prefix: '#define _GNU_SOURCE\n#include <stdio.h>')
+
+io_args = []
+if have_fseeko
+    io_args += ['-DHAVE_FSEEKO']
+endif
+if have_ftello
+    io_args += ['-DHAVE_FTELLO']
+endif
+
 # Deal with M_PI & friends; add `use_math_defines` to c_args or cpp_args
 # Cython doesn't always get this right itself (see, e.g., gh-16800), so
 # explicitly add the define as a compiler flag for Cython-generated code.
@@ -33,6 +46,16 @@ module_path = 'pyimager'
 py.install_sources(
   python_sources,
   subdir: module_path
+)
+
+py.extension_module(
+    '_io',
+    '_io.pyx',
+    cython_args: cython_args,
+    c_args: io_args,
+    install: true,
+    subdir: module_path,
+    dependencies: [py_dep],
 )
 
 py.extension_module(

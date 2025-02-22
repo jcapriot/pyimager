@@ -1,4 +1,5 @@
 from libc.stdio cimport FILE
+from ._io cimport pyi_off_t
 from .cwp cimport cwp_String
 from .su cimport Value
 cimport cython
@@ -222,10 +223,15 @@ cdef class SEGYTrace:
     @staticmethod
     cdef SEGYTrace from_file_descriptor(FILE *fd)
 
+    cdef to_file_descriptor(self, FILE * fd)
+
 cdef class SEGY:
     cdef:
         # For file based collection
-        str file_name
+        object file
+        bint file_owner
+        FILE *fd
+        pyi_off_t orig_pos
 
         # For in memory collection
         list traces
@@ -233,90 +239,11 @@ cdef class SEGY:
         # For an iterator passthrough
         BaseTraceIterator iterator
 
-        # information that should be common to all internal traces
-        int tracl
-        int tracr
-        int fldr
-        int tracf
-        int ep
-        int cdp
-        int cdpt
-        short trid
-        short nvs
-        short nhs
-        short duse
-        int offset
-        int gelev
-        int selev
-        int sdepth
-        int gdel
-        int sdel
-        int swdep
-        int gwdep
-        short scalel
-        short scalco
-        int  sx
-        int  sy
-        int  gx
-        int  gy
-        short counit
-        short wevel
-        short swevel
-        short sut
-        short gut
-        short sstat
-        short gstat
-        short tstat
-        short laga
-        short lagb
-        short delrt
-        short muts
-        short mute
-        unsigned short ns
-        unsigned short dt
-        short gain
-        short igc
-        short igi
-        short corr
-        short sfs
-        short sfe
-        short slen
-        short styp
-        short stas
-        short stae
-        short tatyp
-        short afilf
-        short afils
-        short nofilf
-        short nofils
-        short lcf
-        short hcf
-        short lcs
-        short hcs
-        short year
-        short day
-        short hour
-        short minute
-        short sec
-        short timbas
-        short trwf
-        short grnors
-        short grnofr
-        short grnlof
-        short gaps
-        short otrav
-        float d1
-        float f1
-        float d2
-        float f2
-        float ungpow
-        float unscale
         int ntr
-        short mark
-        short shortpad
 
     @staticmethod
     cdef SEGY from_trace_iterator(BaseTraceIterator iterator)
+    cdef _close_file(self)
 
 
 cdef class BaseTraceIterator:

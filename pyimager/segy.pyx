@@ -1,16 +1,9 @@
-from dask.sizeof import sizeof
-from libc.stdio cimport FILE, fopen, fclose
+from libc.stdio cimport FILE, fwrite, fread
 from libc.stdlib cimport malloc, free
 cimport cython
-from .par cimport initargs
+from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t
 
 import numpy as np
-
-# This needs to be here for file-based io to work
-# it initializes the xargc and xargv parameters
-# (to nothing because this package handles everything)
-cdef char* argv_placeholder = ''
-initargs(1, &argv_placeholder)
 
 @cython.final
 cdef class SEGYTrace:
@@ -21,6 +14,8 @@ cdef class SEGYTrace:
         self.data_owner = False
 
     def __dealloc__(self):
+
+        print("deallocating SEGYTrace", flush=True)
         # De-allocate if not null and flag is set
         if self.tr is not NULL and self.trace_owner:
             del_trace(self.tr, self.data_owner)
@@ -40,16 +35,33 @@ cdef class SEGYTrace:
         cdef segy *tr = <segy *> malloc(sizeof(segy))
         if tr is NULL:
             raise MemoryError("Unable to allocate trace structure.")
-        cdef int getter_success = fvgettr(fd, tr)
-        if not getter_success:
+        cdef int n_read
+        n_read = fread(tr, HDRBYTES, 1, fd)
+        if n_read != 1:
             del_trace(tr, 1)
-            raise IOError("Unable to read trace from file.")
+            raise IOError("Unable to read trace header from file.")
+
+        tr.data = <float *> malloc(sizeof(float)*tr.ns)
+        n_read = fread(tr, sizeof(float), tr.ns, fd)
+        if n_read != tr.ns:
+            free(tr.data)
+            raise IOError("Unable to read expected number of trace samples.")
 
         cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
         cy_trace.trace_owner = True
         cy_trace.data_owner = True
         cy_trace.tr = tr
         return cy_trace
+
+    cdef to_file_descriptor(self, FILE *fd):
+        cdef segy *tr = self.tr
+        cdef int n_write = fwrite(tr, HDRBYTES, 1, fd)
+        if n_write != 1:
+            raise IOError("Error writing trace header to file.")
+
+        n_write = fwrite(tr.data, sizeof(float), tr.ns, fd)
+        if n_write != tr.ns:
+            raise IOError("Error writing trace data to file.")
 
     def __init__(
         self,
@@ -228,15 +240,15 @@ cdef class SEGYTrace:
 
     @property
     def ntr(self):
-        return self.trace.ntr
+        return self.tr.ntr
 
     @property
     def ns(self):
-        return self.trace.ns
+        return self.tr.ns
 
     @property
     def dt(self):
-        return self.trace.dt
+        return self.tr.dt
 
     @property
     def data(self):
@@ -244,9 +256,27 @@ cdef class SEGYTrace:
 
 cdef class SEGY:
     def __cinit__(self):
-        self.file_name = ''
+        self.file = None
         self.traces = None
         self.iterator = None
+        self.fd = NULL
+        self.orig_pos = 0
+        self.ntr = 0
+
+    def __dealloc__(self):
+        print("deallocating SEGY", flush=True)
+        # Ensure the file is closed on deletion
+        self._close_file()
+
+    cdef _close_file(self):
+        if self.fd is not NULL:
+            # close the dupped handle
+            PyFile_DupClose(self.file, self.fd, self.orig_pos)
+            self.fd = NULL
+        if self.file_owner and self.file is not None:
+            self.file.close()
+            self.file_owner = False
+
 
     def __init__(self, trace_data, dt, **kwargs):
         n_tr = len(trace_data)
@@ -260,21 +290,20 @@ cdef class SEGY:
         return self.ntr
 
     @classmethod
-    def from_file(cls, file_name):
+    def from_file(cls, filename):
+        if isinstance(filename, (bytes, str)):
+            file = open(filename)
+            file_owner = True
+        else:
+            file = filename
+            file_owner = False
 
         cdef SEGY new_segy = SEGY.__new__(SEGY)
-        new_segy.file_name = file_name
 
-        cdef:
-            SEGYTrace trace
-            FILE *fd
-        # get the first trace to set some parameters
-        fd = fopen(file_name.encode(), "rb")
-        try:
-            trace = SEGYTrace.from_file_descriptor(fd)
-            new_segy.ntr = trace.tr.ntr
-        finally:
-            fclose(fd)
+        new_segy.file = file
+        fd = PyFile_Dup(file, 'rb', &new_segy.orig_pos)
+        fread(&new_segy.ntr, sizeof(new_segy.ntr), 1, fd)
+
         return new_segy
 
     @staticmethod
@@ -286,7 +315,7 @@ cdef class SEGY:
 
     @property
     def on_disk(self):
-        return self.file_name is not ''
+        return self.file is not None
 
     @property
     def is_iterator(self):
@@ -297,10 +326,14 @@ cdef class SEGY:
         return self.traces is not None
 
     def __iter__(self):
+        cdef _FileTraceIterator f_iter
         if self.on_disk:
-            return _FileTraceIterator(self.file_name.encode(), self.ntr)
+            if self.file.seekable():
+                self.file.seek(self.orig_pos)
+                fread(&self.ntr, sizeof(self.ntr), 1, self.fd)
+            return _FileTraceIterator.from_file_descriptor(self.fd, self.ntr)
         elif self.in_memory:
-            return _MemoryTraceIterator(self)
+            return _MemoryTraceIterator(self.traces)
         elif self.is_iterator:
             return self.iterator
         else:
@@ -312,25 +345,39 @@ cdef class SEGY:
         else:
             self.traces = [trace for trace in self]
             self.iterator = None
-            self.file_name = ""
+            self._close_file()
             return self
 
-    def to_file(self, str file_name):
+    def to_file(self, filename):
         if self.on_disk:
             return self
         cdef:
             SEGYTrace trace
             FILE *fd
-        try:
-            fd = fopen(file_name.encode(), 'wb')
-            for trace in self:
-                fvputtr(fd, trace.tr)
+            bint file_owner
+            pyi_off_t orig_pos = 0
 
-            self.file_name = file_name
-            self.iterator = None
-            self.traces = None
+        if isinstance(filename, (bytes, str)):
+            file = open(filename)
+            file_owner = True
+        else:
+            file = filename
+            file_owner = False
+
+        fd = PyFile_Dup(file, 'wb', &orig_pos)
+        fwrite(&self.ntr, sizeof(self.ntr), 1, fd)
+        try:
+            for trace in self:
+                trace.to_file_descriptor(fd)
         finally:
-            fclose(fd)
+            if file.seekable():
+                # rewind the input stream
+                file.seek(orig_pos)
+
+        self.file = filename
+        self.file_owner = file_owner
+        self.iterator = None
+        self.traces = None
         return self
 
 
@@ -371,17 +418,11 @@ cdef class _FileTraceIterator(BaseTraceIterator):
     cdef:
         FILE *fd
 
-    def __dealloc__(self):
-        # Ensure the file is closed on deletion
-        if self.fd is not NULL:
-            fclose(self.fd)
-            self.fd = NULL
-
-    def __init__(self, bytes file_name, int n_traces):
-        self.fd = fopen(file_name, 'rb')
-        if self.fd is NULL:
-            raise IOError(f"Unable to open {file_name} for reading.")
-        self.n_traces = n_traces
+    @staticmethod
+    cdef _FileTraceIterator from_file_descriptor(FILE *fd, int n_traces):
+        cdef _FileTraceIterator iterator = _FileTraceIterator.__new__(_FileTraceIterator)
+        iterator.fd = fd
+        iterator.n_traces = n_traces
 
     cdef SEGYTrace next_trace(self):
         if self.i == self.n_traces:
