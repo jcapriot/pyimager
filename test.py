@@ -16,10 +16,6 @@ im_dat = np.vstack(im_dat)
 plt.imshow(im_dat.T)
 plt.show()
 
-print("writing to file:")
-# segy.to_file('test.segy')
-print("back to memory")
-# segy = SEGY.from_file('test.segy').to_memory()
 print(segy.n_traces)
 
 print("bandpassing:")

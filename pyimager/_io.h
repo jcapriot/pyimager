@@ -2,10 +2,11 @@
 #define _IO_HEADER_H
 
 #include <stdio.h>
+#include "Python.h"
 
 #if defined _MSC_VER && _MSC_VER >= 1900
 
-    #include <stdlib.h>
+    #include <stdlib.h>   // _set_thread_local_invalid_parameter_handler()
     /*
      * Macros to protect CRT calls against instant termination when passed an
      * invalid parameter (https://bugs.python.org/issue23524).
@@ -23,12 +24,12 @@
 #endif
 
 #ifdef _WIN32
-    static FILE *f pyi_fdopen(int fd, const char *mode){
-        _BEGIN_SUPPRESS_IPH
-        FILE *fd = _fdopen(X, Y);
-        _END_SUPPRESS_IPH
-        return fd;
-    }
+static FILE *pyi_fdopen(int fd, const char *mode){
+    _BEGIN_SUPPRESS_IPH
+    FILE *fd = _fdopen(fd, mode);
+    _END_SUPPRESS_IPH
+    return fd;
+}
 #else
     #define pyi_fdopen fdopen
 #endif
