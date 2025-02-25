@@ -99,7 +99,6 @@ cdef class _ButterworthBandpassIter(BaseTraceIterator):
         cdef float dt
         cdef float fstoplo, fstophi, fpasslo, fpasshi
         if tr.dt != self.last_dt:
-            print("redesigning")
             self.last_dt = tr.dt
             dt = <float>((<double> tr.dt)/1000000.0)
 
@@ -118,7 +117,6 @@ cdef class _ButterworthBandpassIter(BaseTraceIterator):
                     self.f3dblo = .15 * 0.5 # nyq * dt
                 else:
                     self.f3dblo = self.f3dblo_in * dt
-                print("low:", self.npoleslo, self.f3dblo)
 
             if self.high_cut:
                 if self.design_high:
@@ -135,13 +133,11 @@ cdef class _ButterworthBandpassIter(BaseTraceIterator):
                     self.f3dbhi = .40 * 0.5 # nyq * dt
                 else:
                     self.f3dbhi = self.f3dbhi_in * dt
-                print("high:", self.npoleshi, self.f3dbhi)
 
     cdef SEGYTrace next_trace(self):
         cdef SEGYTrace trace = self.iter_in.next_trace()
         cdef segy *tr = trace.tr
         self.set_filter_params(tr)
-        print("ns: ", tr.ns, flush=True)
         if self.low_cut:
             bfhighpass_trace(self.zerophase, self.npoleslo, self.f3dblo, tr, tr)
 

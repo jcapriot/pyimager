@@ -4,6 +4,17 @@ from libc.limits cimport INT_MIN, INT_MAX
 import os
 import io
 
+"""
+This module is meant to handle getting a C FILE pointer to an open python file object. It's contents
+were adapted from numpy's npy_3kcompat.h file. As suggested in that file, they recommend copying that
+file due to there lack of backwards compatibility guarantees.
+
+Permanent link to the version of the reference file is at:
+
+https://github.com/numpy/numpy/blob/a1f2d582f84878b6c67bd641fa671a4cf868fe8c/numpy/_core/include/numpy/npy_3kcompat.h
+"""
+
+# The docstring below is raw C code necessary for Windows
 cdef extern from "_io.h":
     """
     #ifdef _MSC_VER
@@ -11,7 +22,7 @@ cdef extern from "_io.h":
     #include <stdlib.h>
 
     #if _MSC_VER >= 1900
-    /* npy3k_compat.h uses this function in the _Py_BEGIN/END_SUPPRESS_IPH
+    /* _io.h uses this function in the _Py_BEGIN/END_SUPPRESS_IPH
      * macros. It does not need to be defined when building using MSVC
      * earlier than 14.0 (_MSC_VER == 1900).
      */

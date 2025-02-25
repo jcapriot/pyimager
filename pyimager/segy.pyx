@@ -1,5 +1,6 @@
 from libc.stdio cimport FILE, fwrite, fread
 from libc.stdlib cimport malloc, free
+cimport cpython.buffer as cpy_buf
 cimport cython
 from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t
 
@@ -14,8 +15,6 @@ cdef class SEGYTrace:
         self.data_owner = False
 
     def __dealloc__(self):
-
-        print("deallocating SEGYTrace", flush=True)
         # De-allocate if not null and flag is set
         if self.tr is not NULL and self.trace_owner:
             del_trace(self.tr, self.data_owner)
@@ -25,6 +24,7 @@ cdef class SEGYTrace:
     cdef SEGYTrace from_trace(segy *tr, bint trace_owner=False, bint data_owner=False):
         cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
         cy_trace.tr = tr
+        cy_trace.trace_data = <float[:tr.ns]> tr.data
         cy_trace.trace_owner = trace_owner
         cy_trace.data_owner = data_owner
         return cy_trace
@@ -47,11 +47,7 @@ cdef class SEGYTrace:
             free(tr.data)
             raise IOError("Unable to read expected number of trace samples.")
 
-        cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
-        cy_trace.trace_owner = True
-        cy_trace.data_owner = True
-        cy_trace.tr = tr
-        return cy_trace
+        return SEGYTrace.from_trace(tr, True, True)
 
     cdef to_file_descriptor(self, FILE *fd):
         cdef segy *tr = self.tr
@@ -252,7 +248,21 @@ cdef class SEGYTrace:
 
     @property
     def data(self):
-        return np.asarray(<float[:self.tr.ns]> self.tr.data)
+        return self.trace_data
+
+    def __getbuffer__(self, Py_buffer *buffer, int flags):
+        cdef Py_ssize_t itemsize = sizeof(self.tr.data[0])
+        buffer.buf = <char *> self.tr.data
+        buffer.format = 'f'
+        buffer.internal = NULL
+        buffer.itemsize = itemsize
+        buffer.len = self.tr.ns
+        buffer.ndim = 1
+        buffer.obj = self
+        buffer.readonly = 0
+        buffer.shape = self.trace_data.shape
+        buffer.strides = self.trace_data.strides
+        buffer.suboffsets = NULL
 
 cdef class SEGY:
     def __cinit__(self):
@@ -264,7 +274,6 @@ cdef class SEGY:
         self.ntr = 0
 
     def __dealloc__(self):
-        print("deallocating SEGY", flush=True)
         # Ensure the file is closed on deletion
         self._close_file()
 
@@ -432,8 +441,6 @@ cdef class _FileTraceIterator(BaseTraceIterator):
     cdef SEGYTrace next_trace(self):
         if self.i == self.n_traces:
             raise StopIteration()
-        print("reading in:", self.i, self.n_traces)
         cdef SEGYTrace out = SEGYTrace.from_file_descriptor(self.fd)
-        print(out.data)
         self.i += 1
         return out

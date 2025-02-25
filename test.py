@@ -16,8 +16,6 @@ im_dat = np.vstack(im_dat)
 plt.imshow(im_dat.T)
 plt.show()
 
-print(segy.n_traces)
-
 print("bandpassing:")
 bandpassed = butterworth_bandpass(segy).to_memory()
 print("succeeded")

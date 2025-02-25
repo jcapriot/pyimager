@@ -215,7 +215,7 @@ cdef class SEGYTrace:
         segy* tr
         bint trace_owner
         bint data_owner
-        float[::1] trace_data #For holding a reference if it came from python
+        float[::1] trace_data # For holding a reference if it came from python
 
     @staticmethod
     cdef SEGYTrace from_trace(segy *trace, bint trace_owner=?, bint data_owner=?)

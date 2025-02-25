@@ -14,7 +14,7 @@ def wiggle(segy, ax=None, color='k'):
         n1 = trace.ns
         dt = trace.dt / 1_000_000
         s_locs = np.linspace(0, n1*dt, n1, endpoint=False)
-        dat = trace.data
+        dat = np.asarray(trace)
 
         fill = ax.fill_betweenx(s_locs, dat+i, i, where=dat>0, interpolate=True, color=color)
         line = ax.plot(dat+i, s_locs, color=color)
