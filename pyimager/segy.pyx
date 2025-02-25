@@ -3,6 +3,8 @@ from libc.stdlib cimport malloc, free
 cimport cython
 from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t
 
+import os
+from contextlib import nullcontext
 import numpy as np
 
 @cython.final
@@ -15,7 +17,6 @@ cdef class SEGYTrace:
 
     def __dealloc__(self):
 
-        print("deallocating SEGYTrace", flush=True)
         # De-allocate if not null and flag is set
         if self.tr is not NULL and self.trace_owner:
             del_trace(self.tr, self.data_owner)
@@ -259,23 +260,7 @@ cdef class SEGY:
         self.file = None
         self.traces = None
         self.iterator = None
-        self.fd = NULL
-        self.orig_pos = 0
         self.ntr = 0
-
-    def __dealloc__(self):
-        print("deallocating SEGY", flush=True)
-        # Ensure the file is closed on deletion
-        self._close_file()
-
-    cdef _close_file(self):
-        if self.fd is not NULL:
-            # close the dupped handle
-            PyFile_DupClose(self.file, self.fd, self.orig_pos)
-            self.fd = NULL
-        if self.file_owner and self.file is not None:
-            self.file.close()
-            self.file_owner = False
 
 
     def __init__(self, trace_data, dt, **kwargs):
@@ -292,18 +277,27 @@ cdef class SEGY:
 
     @classmethod
     def from_file(cls, filename):
-        if isinstance(filename, (bytes, str)):
-            file = open(filename)
-            file_owner = True
-        else:
-            file = filename
+        cdef:
+            SEGYTrace trace
+            FILE *fd
+            bint file_owner
+            pyi_off_t orig_pos = 0
+            int ntr = 0
+
+        if hasattr(filename, 'read'):
+            ctx = nullcontext(filename)
             file_owner = False
+        else:
+            ctx = open(os.fspath(filename), "rb")
+            file_owner = True
+
+        with ctx as f:
+            ntr = f.read(sizeof(ntr))
 
         cdef SEGY new_segy = SEGY.__new__(SEGY)
 
-        new_segy.file = file
-        fd = PyFile_Dup(file, 'rb', &new_segy.orig_pos)
-        fread(&new_segy.ntr, sizeof(new_segy.ntr), 1, fd)
+        new_segy.file = filename
+        new_segy.ntr = ntr
 
         return new_segy
 
@@ -331,18 +325,14 @@ cdef class SEGY:
         return self.ntr
 
     def __iter__(self):
-        cdef _FileTraceIterator f_iter
         if self.on_disk:
-            if self.file.seekable():
-                self.file.seek(self.orig_pos)
-                fread(&self.ntr, sizeof(self.ntr), 1, self.fd)
-            return _FileTraceIterator.from_file_descriptor(self.fd, self.ntr)
+            return _FileTraceIterator.from_file_descriptor(self.file, self.ntr)
         elif self.in_memory:
             return _MemoryTraceIterator(self.traces)
         elif self.is_iterator:
             return self.iterator
         else:
-            raise TypeError('Undefined')
+            raise TypeError('SEGY file is not on disk, in memory, nor from an iterator.')
 
     def to_memory(self):
         if self.in_memory:
@@ -350,7 +340,7 @@ cdef class SEGY:
         else:
             self.traces = [trace for trace in self]
             self.iterator = None
-            self._close_file()
+            self.file = None
             return self
 
     def to_file(self, filename):
@@ -362,25 +352,24 @@ cdef class SEGY:
             bint file_owner
             pyi_off_t orig_pos = 0
 
-        if isinstance(filename, (bytes, str)):
-            file = open(filename)
-            file_owner = True
-        else:
-            file = filename
-            file_owner = False
 
-        fd = PyFile_Dup(file, 'wb', &orig_pos)
-        fwrite(&self.ntr, sizeof(self.ntr), 1, fd)
-        try:
-            for trace in self:
-                trace.to_file_descriptor(fd)
-        finally:
-            if file.seekable():
-                # rewind the input stream
-                file.seek(orig_pos)
+        if hasattr(filename, 'write'):
+            ctx = nullcontext(filename)
+            file_owner = False
+        else:
+            ctx = open(os.fspath(filename), "wb")
+            file_owner = True
+
+        with ctx as file:
+            fd = PyFile_Dup(file, 'wb', &orig_pos)
+            try:
+                fwrite(&self.ntr, sizeof(self.ntr), 1, fd)
+                for trace in self:
+                    trace.to_file_descriptor(fd)
+            finally:
+                PyFile_DupClose(file, fd, orig_pos)
 
         self.file = filename
-        self.file_owner = file_owner
         self.iterator = None
         self.traces = None
         return self
@@ -422,18 +411,57 @@ cdef class _MemoryTraceIterator(BaseTraceIterator):
 cdef class _FileTraceIterator(BaseTraceIterator):
     cdef:
         FILE *fd
+        bint owner
+        object file
+        pyi_off_t orig_pos
 
-    @staticmethod
-    cdef _FileTraceIterator from_file_descriptor(FILE *fd, int n_traces):
-        cdef _FileTraceIterator iterator = _FileTraceIterator.__new__(_FileTraceIterator)
-        iterator.fd = fd
-        iterator.n_traces = n_traces
+    def __cinit__(self):
+        self.fd = NULL
+        self.owner = False
+        self.file = None
+        self.n_traces = 0
+
+    def __dealoc__(self):
+        # make sure I get closed up when I'm garbage collected
+        self._close_file()
+
+    cdef _close_file(self):
+        # first close my duped file
+        if self.fd is not NULL and self.file is not None:
+            PyFile_DupClose(self.file, self.fd, self.orig_pos)
+            self.fd = NULL
+        # Then if I own the original, close it
+        if self.owner:
+            self.file.close()
+        # and clear my reference to the original
+        self.file = None
+
+    def __init__(self, file, int n_traces):
+        if not hasattr(file, "read"):
+            # open the file
+            file = open(os.fspath(file), "rb")
+            # and advance it to the start of the first trace header
+            try:
+                file.read(sizeof(int))
+            except Exception as err:
+                file.close()
+                raise err
+            self.owner = True
+        else:
+            self.owner = False
+        file = self.file
+        self.n_traces = n_traces
+
+        try:
+            self.fd = PyFile_Dup(file, "rb", &self.orig_pos)
+        except Exception as err:
+            self._close_file()
+            raise err
 
     cdef SEGYTrace next_trace(self):
         if self.i == self.n_traces:
+            self._close_file()
             raise StopIteration()
-        print("reading in:", self.i, self.n_traces)
         cdef SEGYTrace out = SEGYTrace.from_file_descriptor(self.fd)
-        print(out.data)
         self.i += 1
         return out

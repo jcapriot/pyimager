@@ -368,7 +368,7 @@ int dataread(segy *tp, struct insegyinfo *iptr, cwp_Bool fixed_length)
 {
 	unsigned int nsread = fixed_length?iptr->nsfirst:tp->ns;
 	unsigned int databytes = infoptr->bytesper*nsread;
-    tp->data = alloc1float(tp->data, nsread);
+    tp->data = realloc1float(tp->data, nsread);
 	int nread = (int) efread((char *) (&((tp->data)[0])),1, databytes,
 			   iptr->infp);
 

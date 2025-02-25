@@ -243,7 +243,6 @@ cdef class SEGY:
 
     @staticmethod
     cdef SEGY from_trace_iterator(BaseTraceIterator iterator)
-    cdef _close_file(self)
 
 
 cdef class BaseTraceIterator:
