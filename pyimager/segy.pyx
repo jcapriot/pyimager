@@ -45,7 +45,7 @@ cdef class SEGYTrace:
             raise IOError("Unable to read trace header from file.")
 
         tr.data = <float *> malloc(sizeof(float)*tr.ns)
-        n_read = fread(tr, sizeof(float), tr.ns, fd)
+        n_read = fread(tr.data, sizeof(float), tr.ns, fd)
         if n_read != tr.ns:
             free(tr.data)
             raise IOError("Unable to read expected number of trace samples.")
@@ -338,7 +338,7 @@ cdef class SEGY:
 
     def __iter__(self):
         if self.on_disk:
-            return _FileTraceIterator.from_file_descriptor(self.file, self.ntr)
+            return _FileTraceIterator(self.file, self.ntr)
         elif self.in_memory:
             return _MemoryTraceIterator(self.traces)
         elif self.is_iterator:
@@ -461,7 +461,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
             self.owner = True
         else:
             self.owner = False
-        file = self.file
+        self.file = file
         self.n_traces = n_traces
 
         try:
@@ -472,8 +472,17 @@ cdef class _FileTraceIterator(BaseTraceIterator):
 
     cdef SEGYTrace next_trace(self):
         if self.i == self.n_traces:
-            self._close_file()
             raise StopIteration()
-        cdef SEGYTrace out = SEGYTrace.from_file_descriptor(self.fd)
+        cdef SEGYTrace out
+        try:
+            out = SEGYTrace.from_file_descriptor(self.fd)
+        except Exception as err:
+            # if something goes wrong reading in from the file descriptor
+            # close myself and re-raise the error.
+            self._close_file()
+            raise err
         self.i += 1
+        if self.i == self.n_traces:
+            # the next request will raise a StopIteration so close myself now.
+            self._close_file()
         return out

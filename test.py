@@ -9,16 +9,19 @@ import os
 
 segy = synlv().to_memory()
 wiggle(segy)
-plt.show()
 
 im_dat = [trace.data for trace in segy]
 im_dat = np.vstack(im_dat)
-plt.imshow(im_dat.T)
+
+plt.figure()
+plt.imshow(im_dat.T, cmap='seismic')
 plt.show()
 
-print("bandpassing:")
 bandpassed = butterworth_bandpass(segy).to_memory()
-print("succeeded")
+
+bandpassed.to_file("test.segy")
+for trace in bandpassed:
+    print(np.asarray(trace.data))
 
 im_dat = [trace.data for trace in bandpassed]
 im_dat = np.stack(im_dat)
@@ -26,8 +29,4 @@ plt.figure()
 plt.imshow(im_dat.T, clim=[-1, 1], cmap='seismic')
 plt.show()
 
-plt.imshow(im_dat)
-plt.show()
-
-
-print("succ", flush=True)
+print("ended")
