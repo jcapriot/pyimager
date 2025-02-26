@@ -9,5 +9,5 @@ cdef extern from "_io.h":
     pyi_off_t pyi_ftell(FILE *stream)
 
 
-cdef FILE * PyFile_Dup(object file, char* mode, pyi_off_t *orig_pos)
+cdef (FILE *, pyi_off_t) PyFile_Dup(object file, char* mode)
 cdef int PyFile_DupClose(object file, FILE* handle, pyi_off_t orig_pos)

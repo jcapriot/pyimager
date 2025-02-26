@@ -25,10 +25,11 @@
 
 #ifdef _WIN32
 static FILE *pyi_fdopen(int fd, const char *mode){
+    FILE *f;
     _BEGIN_SUPPRESS_IPH
-    FILE *fd = _fdopen(fd, mode);
+    f = _fdopen(fd, mode);
     _END_SUPPRESS_IPH
-    return fd;
+    return f;
 }
 #else
     #define pyi_fdopen fdopen
@@ -40,10 +41,10 @@ static FILE *pyi_fdopen(int fd, const char *mode){
     #include <io.h>
     #include <stdint.h>
 
+    #define pyi_off_t int64_t
     #define pyi_fseek _fseeki64
     #define pyi_ftell _ftelli64
     #define pyi_lseek _lseeki64
-    #define pyi_off_t int64_t
 #else
     #ifdef HAVE_FSEEKO
         #define pyi_fseek fseeko

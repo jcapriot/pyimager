@@ -42,29 +42,35 @@ cdef extern from "_io.h":
     """
 
 
-cdef FILE * PyFile_Dup(object file, char* mode, pyi_off_t *orig_pos):
+cdef (FILE *, pyi_off_t) PyFile_Dup(object file, char* mode):
     cdef:
         int fd, fd2
         Py_ssize_t fd2_tmp
-        pyi_off_t pos
+        pyi_off_t pos, orig_pos
         FILE *handle
 
     file.flush()
+    print("flushed", flush=True)
 
     fd = PyObject_AsFileDescriptor(file)
+    print("descriptor?", fd, flush=True)
     if fd == -1:
-        return NULL
+        return NULL, 0
     fd2_tmp = os.dup(fd)
+    print("dupped?", fd2_tmp, flush=True)
     if fd2_tmp < INT_MIN or fd2_tmp > INT_MAX:
         raise IOError("Getting an 'int' from os.dup() failed")
 
     fd2 = <int> fd2_tmp
     handle = pyi_fdopen(fd2, mode)
-    orig_pos[0] = pyi_ftell(handle)
-    if orig_pos[0] == -1:
+    print("handled", fd2, flush=True)
+    orig_pos = pyi_ftell(handle)
+    print("orig_pos", orig_pos, flush=True)
+    if orig_pos == -1:
         if isinstance(file, io.RawIOBase):
-            return handle
+            return handle, orig_pos
         else:
+            fclose(handle)
             raise IOError("obtaining file position failed")
 
     # raw handle to the Python-side position
@@ -75,7 +81,8 @@ cdef FILE * PyFile_Dup(object file, char* mode, pyi_off_t *orig_pos):
     if pyi_fseek(handle, pos, SEEK_SET) == -1:
         fclose(handle)
         raise IOError("seeking file failed")
-    return handle
+    print("told", pos, flush=True)
+    return handle, orig_pos
 
 cdef int PyFile_DupClose(object file, FILE* handle, pyi_off_t orig_pos):
     cdef:
