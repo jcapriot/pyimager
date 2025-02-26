@@ -8,23 +8,20 @@ import time
 import os
 
 segy = synlv().to_memory()
-wiggle(segy)
-
-im_dat = [trace.data for trace in segy]
-im_dat = np.vstack(im_dat)
-
-plt.figure()
-plt.imshow(im_dat.T, cmap='seismic')
-plt.show()
 
 bandpassed = butterworth_bandpass(segy).to_memory()
 
 bandpassed.to_file("test.segy")
-for trace in bandpassed:
-    print(np.asarray(trace.data))
+print("written")
 
-im_dat = [trace.data for trace in bandpassed]
+im_dat = [trace for trace in bandpassed]
 im_dat = np.stack(im_dat)
+
+print(bandpassed.on_disk, bandpassed.in_memory, bandpassed.is_iterator)
+
+bandpassed.to_memory()
+print(bandpassed.on_disk, bandpassed.in_memory, bandpassed.is_iterator)
+
 plt.figure()
 plt.imshow(im_dat.T, clim=[-1, 1], cmap='seismic')
 plt.show()
