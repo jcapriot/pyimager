@@ -249,10 +249,6 @@ cdef class SEGYTrace:
     def dt(self):
         return self.tr.dt
 
-    @property
-    def data(self):
-        return self.trace_data
-
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef Py_ssize_t itemsize = sizeof(self.tr.data[0])
         buffer.buf = <char *> self.tr.data
