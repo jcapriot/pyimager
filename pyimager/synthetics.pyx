@@ -56,7 +56,13 @@ cdef class _SpikeIterator(BaseTraceIterator):
     cdef SEGYTrace next_trace(self):
         if self.i == self.n_traces:
             raise StopIteration()
-        cdef segy *tr = new_trace(self.nt)
+        cdef:
+            segy *tr = new_trace(self.nt)
+            int it, ix
+
+        for it in range(tr.ns):
+            tr.data[it] = 0.0
+
         tr.dt = self.dt
         tr.offset = self.offset
         tr.tracl = self.i + 1
