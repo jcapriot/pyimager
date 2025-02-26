@@ -1,8 +1,7 @@
-from libc.stdio cimport FILE, fwrite, fread
+from libc.stdio cimport FILE, fwrite, fread, SEEK_CUR
 from libc.stdlib cimport malloc, free
-cimport cpython.buffer as cpy_buf
 cimport cython
-from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t
+from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t, pyi_fseek
 
 import os
 from contextlib import nullcontext
@@ -435,12 +434,13 @@ cdef class _FileTraceIterator(BaseTraceIterator):
 
     cdef _close_file(self):
         # first close my duped file
-        if self.fd is not NULL and self.file is not None:
-            PyFile_DupClose(self.file, self.fd, self.orig_pos)
-            self.fd = NULL
-        # Then if I own the original, close it
-        if self.owner:
-            self.file.close()
+        if self.file is not None:
+            if self.fd is not NULL:
+                PyFile_DupClose(self.file, self.fd, self.orig_pos)
+                self.fd = NULL
+            # If I own the original, close it
+            if self.owner:
+                self.file.close()
         # and clear my reference to the original
         self.file = None
 
@@ -448,12 +448,6 @@ cdef class _FileTraceIterator(BaseTraceIterator):
         if not hasattr(file, "read"):
             # open the file
             file = open(os.fspath(file), "rb")
-            # and advance it to the start of the first trace header
-            try:
-                file.read(sizeof(int))
-            except Exception as err:
-                file.close()
-                raise err
             self.owner = True
         else:
             self.owner = False
@@ -462,6 +456,9 @@ cdef class _FileTraceIterator(BaseTraceIterator):
 
         try:
             self.fd = PyFile_Dup(file, "rb", &self.orig_pos)
+            if self.owner:
+                # Advance fd to the start of the traces:
+                pyi_fseek(self.fd, sizeof(int), SEEK_CUR)
         except Exception as err:
             self._close_file()
             raise err
@@ -479,6 +476,6 @@ cdef class _FileTraceIterator(BaseTraceIterator):
             raise err
         self.i += 1
         if self.i == self.n_traces:
-            # the next request will raise a StopIteration so close myself now.
+            # The next request will raise a StopIteration so close myself now.
             self._close_file()
         return out

@@ -30,10 +30,10 @@ dependencies = [
     # TODO: update to "pin-compatible" once possible, see
     # https://github.com/mesonbuild/meson-python/issues/29
     "numpy>=1.22.4",
-    "scipy>=1.8",
+    "matplotlib",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 1 - Planning",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",

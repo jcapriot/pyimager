@@ -23,6 +23,7 @@ def butterworth_bandpass(
     )
     return SEGY.from_trace_iterator(iterator)
 
+
 cdef class _ButterworthBandpassIter(BaseTraceIterator):
     cdef:
         int zerophase
