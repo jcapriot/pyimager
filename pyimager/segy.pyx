@@ -368,7 +368,7 @@ cdef class SEGY:
             file_owner = True
 
         with ctx as file:
-            fd = PyFile_Dup(file, 'wb', &orig_pos)
+            fd, orig_pos = PyFile_Dup(file, "wb")
             try:
                 fwrite(&self.ntr, sizeof(self.ntr), 1, fd)
                 for trace in self:
@@ -434,13 +434,12 @@ cdef class _FileTraceIterator(BaseTraceIterator):
 
     cdef _close_file(self):
         # first close my duped file
-        if self.file is not None:
-            if self.fd is not NULL:
-                PyFile_DupClose(self.file, self.fd, self.orig_pos)
-                self.fd = NULL
-            # If I own the original, close it
-            if self.owner:
-                self.file.close()
+        if self.fd is not NULL and self.file is not None:
+            PyFile_DupClose(self.file, self.fd, self.orig_pos)
+            self.fd = NULL
+        # If I own the original, close it
+        if self.owner and self.file is not None:
+            self.file.close()
         # and clear my reference to the original
         self.file = None
 
@@ -455,7 +454,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
         self.n_traces = n_traces
 
         try:
-            self.fd = PyFile_Dup(file, "rb", &self.orig_pos)
+            self.fd, self.orig_pos = PyFile_Dup(file, "rb")
             if self.owner:
                 # Advance fd to the start of the traces:
                 pyi_fseek(self.fd, sizeof(int), SEEK_CUR)

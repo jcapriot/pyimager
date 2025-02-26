@@ -50,22 +50,17 @@ cdef (FILE *, pyi_off_t) PyFile_Dup(object file, char* mode):
         FILE *handle
 
     file.flush()
-    print("flushed", flush=True)
 
     fd = PyObject_AsFileDescriptor(file)
-    print("descriptor?", fd, flush=True)
     if fd == -1:
         return NULL, 0
     fd2_tmp = os.dup(fd)
-    print("dupped?", fd2_tmp, flush=True)
     if fd2_tmp < INT_MIN or fd2_tmp > INT_MAX:
         raise IOError("Getting an 'int' from os.dup() failed")
 
     fd2 = <int> fd2_tmp
     handle = pyi_fdopen(fd2, mode)
-    print("handled", fd2, flush=True)
     orig_pos = pyi_ftell(handle)
-    print("orig_pos", orig_pos, flush=True)
     if orig_pos == -1:
         if isinstance(file, io.RawIOBase):
             return handle, orig_pos
@@ -81,7 +76,6 @@ cdef (FILE *, pyi_off_t) PyFile_Dup(object file, char* mode):
     if pyi_fseek(handle, pos, SEEK_SET) == -1:
         fclose(handle)
         raise IOError("seeking file failed")
-    print("told", pos, flush=True)
     return handle, orig_pos
 
 cdef int PyFile_DupClose(object file, FILE* handle, pyi_off_t orig_pos):
