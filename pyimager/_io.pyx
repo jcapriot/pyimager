@@ -1,3 +1,6 @@
+# cython: embedsignature=True, language_level=3
+# cython: linetrace=True
+
 from cpython.object cimport PyObject_AsFileDescriptor
 from libc.stdio cimport FILE, fclose, SEEK_SET
 from libc.limits cimport INT_MIN, INT_MAX
@@ -51,7 +54,10 @@ cdef (FILE *, pyi_off_t) PyFile_Dup(object file, char* mode):
 
     file.flush()
 
-    fd = PyObject_AsFileDescriptor(file)
+    try:
+        fd = PyObject_AsFileDescriptor(file)
+    except OSError:
+        raise IOError(f"Cannot write to a {type(file).__name__} object.")
     if fd == -1:
         return NULL, 0
     fd2_tmp = os.dup(fd)

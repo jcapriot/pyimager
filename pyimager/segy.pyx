@@ -1,6 +1,15 @@
+# cython: embedsignature=True, language_level=3
+# cython: linetrace=True
+import io
+
+from cpython.bytes cimport PyBytes_FromStringAndSize
 from libc.stdio cimport FILE, fwrite, fread, SEEK_CUR
 from libc.stdlib cimport malloc, free
+from libc.string cimport memset
 cimport cython
+from cpython cimport mem
+cimport cpython.buffer as pybuf
+
 from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t, pyi_fseek
 
 import os
@@ -21,45 +30,6 @@ cdef class SEGYTrace:
         if self.tr is not NULL and self.trace_owner:
             del_trace(self.tr, self.data_owner)
             self.tr = NULL
-
-    @staticmethod
-    cdef SEGYTrace from_trace(segy *tr, bint trace_owner=False, bint data_owner=False):
-        cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
-        cy_trace.tr = tr
-        cy_trace.trace_data = <float[:tr.ns]> tr.data
-        cy_trace.trace_owner = trace_owner
-        cy_trace.data_owner = data_owner
-        return cy_trace
-
-    @staticmethod
-    cdef SEGYTrace from_file_descriptor(FILE *fd):
-
-        cdef segy *tr = <segy *> malloc(sizeof(segy))
-        if tr is NULL:
-            raise MemoryError("Unable to allocate trace structure.")
-        cdef int n_read
-        n_read = fread(tr, HDRBYTES, 1, fd)
-        if n_read != 1:
-            del_trace(tr, 1)
-            raise IOError("Unable to read trace header from file.")
-
-        tr.data = <float *> malloc(sizeof(float)*tr.ns)
-        n_read = fread(tr.data, sizeof(float), tr.ns, fd)
-        if n_read != tr.ns:
-            free(tr.data)
-            raise IOError("Unable to read expected number of trace samples.")
-
-        return SEGYTrace.from_trace(tr, True, True)
-
-    cdef to_file_descriptor(self, FILE *fd):
-        cdef segy *tr = self.tr
-        cdef int n_write = fwrite(tr, HDRBYTES, 1, fd)
-        if n_write != 1:
-            raise IOError("Error writing trace header to file.")
-
-        n_write = fwrite(tr.data, sizeof(float), tr.ns, fd)
-        if n_write != tr.ns:
-            raise IOError("Error writing trace data to file.")
 
     def __init__(
         self,
@@ -146,6 +116,7 @@ cdef class SEGYTrace:
     ):
         self.trace_data = np.require(data, dtype=np.float32, requirements='C')
         cdef segy *tr = <segy *> malloc(sizeof(segy))
+        memset(tr, 0, HDRBYTES)
         if tr is NULL:
             raise MemoryError("Unable to allocate trace.")
 
@@ -248,19 +219,79 @@ cdef class SEGYTrace:
     def dt(self):
         return self.tr.dt
 
+    @staticmethod
+    cdef SEGYTrace from_trace(segy *tr, bint trace_owner=False, bint data_owner=False):
+        cdef SEGYTrace cy_trace = SEGYTrace.__new__(SEGYTrace)
+        cy_trace.tr = tr
+        cy_trace.trace_data = <float[:tr.ns]> tr.data
+        cy_trace.trace_owner = trace_owner
+        cy_trace.data_owner = data_owner
+        return cy_trace
+
+    @staticmethod
+    cdef SEGYTrace from_file_descriptor(FILE *fd):
+
+        cdef segy *tr = <segy *> malloc(sizeof(segy))
+        if tr is NULL:
+            raise MemoryError("Unable to allocate trace structure.")
+        memset(tr, 0, HDRBYTES)
+        cdef int n_read
+        n_read = fread(tr, HDRBYTES, 1, fd)
+        if n_read != 1:
+            del_trace(tr, 1)
+            raise IOError("Unable to read trace header from file.")
+
+        tr.data = <float *> malloc(sizeof(float)*tr.ns)
+        n_read = fread(tr.data, sizeof(float), tr.ns, fd)
+        if n_read != tr.ns:
+            free(tr.data)
+            raise IOError("Unable to read expected number of trace samples.")
+
+        return SEGYTrace.from_trace(tr, True, True)
+
+    cdef to_file_descriptor(self, FILE *fd):
+        cdef int n_write = fwrite(self.tr, HDRBYTES, 1, fd)
+        if n_write != 1:
+            raise IOError("Error writing trace header to file.")
+
+        n_write = fwrite(self.tr.data, sizeof(float), self.tr.ns, fd)
+        if n_write != self.tr.ns:
+            raise IOError("Error writing trace data to file.")
+
     def __getbuffer__(self, Py_buffer *buffer, int flags):
-        cdef Py_ssize_t itemsize = sizeof(self.tr.data[0])
-        buffer.buf = <char *> self.tr.data
-        buffer.format = 'f'
-        buffer.internal = NULL
-        buffer.itemsize = itemsize
-        buffer.len = self.tr.ns
-        buffer.ndim = 1
+        cdef Py_ssize_t itemsize = sizeof(float)
+
         buffer.obj = self
-        buffer.readonly = 0
-        buffer.shape = self.trace_data.shape
-        buffer.strides = self.trace_data.strides
+        buffer.buf = <void *> self.tr.data
+        buffer.len = self.tr.ns
+        buffer.itemsize = itemsize
+        buffer.ndim = 1
+
+        if (flags & pybuf.PyBUF_ND) == pybuf.PyBUF_ND:
+            buffer.shape = self.trace_data.shape
+        else:
+            buffer.shape = NULL
+
+        if (flags & pybuf.PyBUF_STRIDES) == pybuf.PyBUF_STRIDES:
+            buffer.strides = self.trace_data.strides
+        else:
+            buffer.strides = NULL
+
+        if (flags & pybuf.PyBUF_WRITABLE) == pybuf.PyBUF_WRITABLE:
+            buffer.readonly = 0
+        else:
+            buffer.readonly = 1
+
+        if (flags & pybuf.PyBUF_FORMAT) == pybuf.PyBUF_FORMAT:
+            buffer.format = 'f'
+        else:
+            buffer.format = NULL
+
+        buffer.internal = NULL
         buffer.suboffsets = NULL
+
+    def __releasebuffer__(self, Py_buffer *buffer):
+        pass
 
 cdef class SEGY:
     def __cinit__(self):
@@ -293,13 +324,11 @@ cdef class SEGY:
 
         if hasattr(filename, 'read'):
             ctx = nullcontext(filename)
-            file_owner = False
         else:
             ctx = open(os.fspath(filename), "rb")
-            file_owner = True
 
         with ctx as f:
-            ntr = f.read(sizeof(ntr))
+            ntr = int.from_bytes(f.read(sizeof(ntr)), byteorder='little')
 
         cdef SEGY new_segy = SEGY.__new__(SEGY)
 
@@ -362,6 +391,10 @@ cdef class SEGY:
 
         if hasattr(filename, 'write'):
             ctx = nullcontext(filename)
+            try:
+                filename = filename.name
+            except AttributeError:
+                filename = None
             file_owner = False
         else:
             ctx = open(os.fspath(filename), "wb")
@@ -375,11 +408,36 @@ cdef class SEGY:
                     trace.to_file_descriptor(fd)
             finally:
                 PyFile_DupClose(file, fd, orig_pos)
+            file.flush()
+            if file_owner:
+                os.fsync(file.fileno())
 
         self.file = filename
         self.iterator = None
         self.traces = None
         return self
+
+    def to_stream(self, stream):
+
+        if hasattr(stream, 'write'):
+            ctx = nullcontext(stream)
+        else:
+            ctx = open(stream, 'wb')
+
+        cdef:
+            SEGYTrace trace
+
+        with ctx as stream_ctx:
+            stream_ctx.write(PyBytes_FromStringAndSize(<char *> &self.ntr, sizeof(self.ntr)))
+            for trace in self:
+                stream_ctx.write(PyBytes_FromStringAndSize(<char *> trace.tr, HDRBYTES))
+                stream_ctx.write(PyBytes_FromStringAndSize(<char *> trace.tr.data, sizeof(float)*trace.tr.ns))
+            stream_ctx.flush()
+        if self.is_iterator:
+            # the above will consume the iterator if it came from one.
+            self.iterator = None
+            # otherwise, don't do anything to the underlying object
+
 
 
 cdef class BaseTraceIterator:
@@ -478,3 +536,12 @@ cdef class _FileTraceIterator(BaseTraceIterator):
             # The next request will raise a StopIteration so close myself now.
             self._close_file()
         return out
+
+def _isfileobject(f):
+    if not isinstance(f, (io.FileIO, io.BufferedReader, io.BufferedWriter)):
+        return False
+    try:
+        f.fileno()
+        return True
+    except OSError:
+        return False

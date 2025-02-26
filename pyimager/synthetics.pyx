@@ -1,10 +1,12 @@
+# cython: embedsignature=True, language_level=3
+# cython: linetrace=True
+
 from .segy cimport SEGYTrace, SEGY, BaseTraceIterator, segy, new_trace
 from .par cimport Reflector, Wavelet, breakReflectors, makeref, makericker
 import numpy as np
 from libc.stdlib cimport malloc, free
 from libc.float cimport FLT_MAX
 from libc.math cimport sqrtf
-from libc.stdio cimport printf
 cimport cython
 
 cdef extern from "synthetics.h" nogil:

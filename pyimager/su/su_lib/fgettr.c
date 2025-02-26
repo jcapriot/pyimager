@@ -655,6 +655,7 @@ int fgettra(FILE *fp, segy *tp, int itr)
 
 segy* new_trace(int ns){
     segy *tr = malloc(sizeof( *tr));
+    memset(tr, 0, HDRBYTES);
     tr->ns = ns;
     tr->data = alloc1float(ns);
     return tr;

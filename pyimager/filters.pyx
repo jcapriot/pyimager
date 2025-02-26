@@ -1,5 +1,8 @@
+# cython: embedsignature=True, language_level=3
+# cython: linetrace=True
+
 from .segy cimport segy, SEGYTrace, SEGY, BaseTraceIterator
-from .cwp cimport bfdesign, bfhighpass, bflowpass
+from .cwp cimport bfdesign
 from libc.math cimport sqrt
 
 cdef extern from "su_filters.h":

@@ -29,12 +29,13 @@ endif
 
 c_undefined_ok = ['-Wno-maybe-uninitialized']
 
-cython_c_args = [numpy_nodepr_api, use_math_defines]
+cython_c_args = [numpy_nodepr_api, use_math_defines, '-DCYTHON_TRACE_NOGIL=1']
 
 cython_args = []
 if cy.version().version_compare('>=3.1.0')
   cython_args += ['-Xfreethreading_compatible=True']
 endif
+
 
 python_sources = [
     '__init__.py',
