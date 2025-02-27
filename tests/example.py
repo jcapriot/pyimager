@@ -1,11 +1,7 @@
-from pyimager.segy import SEGY
 from pyimager.synthetics import spike, synlv
 from pyimager.filters import butterworth_bandpass
-from pyimager.plotting import wiggle
 import matplotlib.pyplot as plt
 import numpy as np
-import time
-import os
 
 segy = synlv().to_memory()
 
