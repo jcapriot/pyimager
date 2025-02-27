@@ -5,9 +5,8 @@ import io
 from cpython.bytes cimport PyBytes_FromStringAndSize
 from libc.stdio cimport FILE, fwrite, fread, SEEK_CUR
 from libc.stdlib cimport malloc, free
-from libc.string cimport memset
+from libc.string cimport memset, memcpy
 cimport cython
-from cpython cimport mem
 cimport cpython.buffer as pybuf
 
 from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t, pyi_fseek
@@ -25,6 +24,16 @@ cdef segy* new_trace(int ns) nogil:
     else:
         tr.data = NULL
     return tr
+
+cdef segy* copy_of(segy *tr_in, bint copy_data=True) nogil:
+    cdef segy *tr_copy = <segy *> malloc(sizeof(segy))
+    memcpy(tr_copy, tr_in, HDRBYTES)
+    if tr_in.ns > 0:
+        tr_copy.data = <float *> malloc(sizeof(float) * tr_in.ns)
+        memcpy(tr_copy.data,  tr_in.data, sizeof(float) * tr_in.ns)
+    else:
+        tr_copy.data = NULL
+    return tr_copy
 
 cdef void del_trace(segy *tp, bint del_data) nogil:
     if (tp != NULL) and del_data:
@@ -465,6 +474,15 @@ cdef class BaseTraceIterator:
 
     def __next__(self):
         return self.next_trace()
+
+    def to_memory(self):
+        return SEGY.from_trace_iterator(self).to_memory()
+
+    def to_file(self, filename):
+        return SEGY.from_trace_iterator(self).to_file(filename)
+
+    def to_stream(self, stream):
+        SEGY.from_trace_iterator(self).to_stream(stream)
 
 
 cdef class _MemoryTraceIterator(BaseTraceIterator):

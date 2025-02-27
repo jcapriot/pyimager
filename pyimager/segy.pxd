@@ -207,7 +207,7 @@ cdef extern from "segy.h" nogil:
     void tabplot(segy *tp, int itmin, int itmax)
 
 cdef segy* new_trace(int ns) nogil
-
+cdef segy* copy_of(segy *tr_in, bint copy_data=?) nogil
 cdef void del_trace(segy *tp, bint del_data) nogil
 
 @cython.final
