@@ -9,7 +9,7 @@ segy = synlv().to_memory()
 wiggle(segy)
 plt.show()
 
-bandpassed = butterworth_bandpass(segy).to_file("bandpassed.segy")
+bandpassed = butterworth_bandpass(segy)
 
 im_dat = np.array([trace for trace in bandpassed])
 

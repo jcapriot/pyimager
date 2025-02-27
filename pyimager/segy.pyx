@@ -475,6 +475,9 @@ cdef class BaseTraceIterator:
     def __next__(self):
         return self.next_trace()
 
+    def __iter__(self):
+        return self
+
     def to_memory(self):
         return SEGY.from_trace_iterator(self).to_memory()
 
