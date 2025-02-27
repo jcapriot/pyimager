@@ -584,9 +584,6 @@ typedef struct {	/* segy - trace identification header */
 
 } segy;
 
-segy* new_trace(int ns);
-void del_trace(segy *tp, int del_data);
-
 static struct {
 	char *key;	char *type;	int offs;
 } hdr[] = {

@@ -91,9 +91,6 @@ cdef extern from "segy.h" nogil:
         short *unass
         float *data
 
-    segy *new_trace(int ns)
-    void del_trace(segy *tp, int del_data)
-
     ctypedef struct hdr:
         pass
 
@@ -208,6 +205,10 @@ cdef extern from "segy.h" nogil:
     void printheader(const segy *tp)
 
     void tabplot(segy *tp, int itmin, int itmax)
+
+cdef segy* new_trace(int ns) nogil
+
+cdef void del_trace(segy *tp, bint del_data) nogil
 
 @cython.final
 cdef class SEGYTrace:

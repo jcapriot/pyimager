@@ -652,24 +652,6 @@ int fgettra(FILE *fp, segy *tp, int itr)
 }
 
 #endif /* end of XDR choice */
-
-segy* new_trace(int ns){
-    segy *tr = malloc(sizeof( *tr));
-    memset(tr, 0, HDRBYTES);
-    tr->ns = ns;
-    tr->data = alloc1float(ns);
-    return tr;
-}
-
-void del_trace(segy *tp, int del_data){
-    if((tp != NULL) && del_data){
-        if (tp->data != NULL){
-            free(tp->data);
-        }
-        tp->data = NULL;
-    }
-    free(tp);
-}
  
 /*====================================================================*\
    These functions determine the presence of a SEGY text header based

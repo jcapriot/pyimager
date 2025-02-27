@@ -16,6 +16,23 @@ import os
 from contextlib import nullcontext
 import numpy as np
 
+cdef segy* new_trace(int ns) nogil:
+    cdef segy *tr = <segy *> malloc(sizeof(segy))
+    memset(tr, 0, HDRBYTES)
+    if ns > 0:
+        tr.ns = ns
+        tr.data = <float *> malloc(sizeof(float) * tr.ns)
+    else:
+        tr.data = NULL
+    return tr
+
+cdef void del_trace(segy *tp, bint del_data) nogil:
+    if (tp != NULL) and del_data:
+        if tp.data != NULL:
+            free(tp.data)
+        tp.data = NULL
+    free(tp)
+
 @cython.final
 cdef class SEGYTrace:
 
@@ -115,8 +132,7 @@ cdef class SEGYTrace:
         short shortpad=0,
     ):
         self.trace_data = np.require(data, dtype=np.float32, requirements='C')
-        cdef segy *tr = <segy *> malloc(sizeof(segy))
-        memset(tr, 0, HDRBYTES)
+        cdef segy *tr = new_trace(0)
         if tr is NULL:
             raise MemoryError("Unable to allocate trace.")
 
@@ -231,10 +247,9 @@ cdef class SEGYTrace:
     @staticmethod
     cdef SEGYTrace from_file_descriptor(FILE *fd):
 
-        cdef segy *tr = <segy *> malloc(sizeof(segy))
+        cdef segy *tr = new_trace(0)
         if tr is NULL:
             raise MemoryError("Unable to allocate trace structure.")
-        memset(tr, 0, HDRBYTES)
         cdef int n_read
         n_read = fread(tr, HDRBYTES, 1, fd)
         if n_read != 1:
