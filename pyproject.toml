@@ -11,7 +11,7 @@ requires = [
 ]
 
 [project]
-name = 'seispy'
+name = 'seismic-python'
 dynamic = ["version"]
 description = 'Wavefield Imaging'
 readme = 'README.md'
@@ -54,8 +54,8 @@ classifiers = [
 file = 'LICENSE.md'
 
 [project.urls]
-Homepage = 'http://github.com/jcapriot/seispy'
-Repository = 'http://github.com/jcapriot/seispy.git'
+Homepage = 'http://github.com/jcapriot/seismic-python'
+Repository = 'http://github.com/jcapriot/seismic-python.git'
 
 [tool.meson-python.args]
 setup = ['--default-library=static']
