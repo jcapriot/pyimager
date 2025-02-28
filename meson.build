@@ -1,7 +1,7 @@
 project(
     'seispy',
     'c', 'cython',
-    version : '0.0.1',
+    version : '0.0.1a0',
     license: 'MIT',
 )
 
