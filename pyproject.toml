@@ -53,6 +53,10 @@ classifiers = [
 [project.license]
 file = 'LICENSE.md'
 
+[project.urls]
+Homepage = 'http://github.com/jcapriot/seispy'
+Repository = 'http://github.com/jcapriot/seispy.git'
+
 [tool.meson-python.args]
 setup = ['--default-library=static']
 
