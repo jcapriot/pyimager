@@ -9,18 +9,20 @@ from libc.string cimport memset, memcpy
 cimport cython
 cimport cpython.buffer as pybuf
 
-from ._io cimport PyFile_Dup, PyFile_DupClose, spy_off_t, spy_fseek
+from .io cimport PyFile_Dup, PyFile_DupClose, spy_off_t, spy_fseek
 
 import os
 from contextlib import nullcontext
 import numpy as np
 
-cdef segy* new_trace(int ns) nogil:
+cdef segy* new_trace(int ns, bint zero_fill=True) nogil:
     cdef segy *tr = <segy *> malloc(sizeof(segy))
     memset(tr, 0, HDRBYTES)
     if ns > 0:
         tr.ns = ns
         tr.data = <float *> malloc(sizeof(float) * tr.ns)
+        if zero_fill:
+            memset(tr.data, 0, sizeof(float) * tr.ns)
     else:
         tr.data = NULL
     return tr
@@ -291,22 +293,11 @@ cdef class SEGYTrace:
         buffer.itemsize = itemsize
         buffer.ndim = 1
 
-        if (flags & pybuf.PyBUF_ND) == pybuf.PyBUF_ND:
-            buffer.shape = self.trace_data.shape
-        else:
-            buffer.shape = NULL
+        buffer.shape = self.trace_data.shape
+        buffer.strides = self.trace_data.strides
+        buffer.readonly = 0
 
-        if (flags & pybuf.PyBUF_STRIDES) == pybuf.PyBUF_STRIDES:
-            buffer.strides = self.trace_data.strides
-        else:
-            buffer.strides = NULL
-
-        if (flags & pybuf.PyBUF_WRITABLE) == pybuf.PyBUF_WRITABLE:
-            buffer.readonly = 0
-        else:
-            buffer.readonly = 1
-
-        if (flags & pybuf.PyBUF_FORMAT) == pybuf.PyBUF_FORMAT:
+        if flags & pybuf.PyBUF_FORMAT:
             buffer.format = 'f'
         else:
             buffer.format = NULL

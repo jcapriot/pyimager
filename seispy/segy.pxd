@@ -1,5 +1,5 @@
 from libc.stdio cimport FILE
-from ._io cimport spy_off_t
+from .io cimport spy_off_t
 from .cwp cimport cwp_String
 from .su cimport Value
 cimport cython
@@ -206,7 +206,7 @@ cdef extern from "segy.h" nogil:
 
     void tabplot(segy *tp, int itmin, int itmax)
 
-cdef segy* new_trace(int ns) nogil
+cdef segy* new_trace(int ns, bint zero_fill=?) nogil
 cdef segy* copy_of(segy *tr_in, bint copy_data=?) nogil
 cdef void del_trace(segy *tp, bint del_data) nogil
 

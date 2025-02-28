@@ -29,7 +29,7 @@ void kdsyn2d_filltrace(
     int is;
     float xg = xs+xo;
     /* set segy trace header parameters */
-    tr->tracl =tr->tracr = tracl
+    tr->tracl = tr->tracr = tracl
     tr->fldr = 1+ixs;
     tr->tracf = 1+ixo;
     tr->offset = NINT(xo);

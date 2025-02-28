@@ -18,7 +18,7 @@ https://github.com/numpy/numpy/blob/a1f2d582f84878b6c67bd641fa671a4cf868fe8c/num
 """
 
 # The docstring below is raw C code necessary for Windows
-cdef extern from "_io.h":
+cdef extern from *:
     """
     #ifdef _MSC_VER
 

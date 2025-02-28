@@ -1,8 +1,8 @@
 # cython: embedsignature=True, language_level=3
 # cython: linetrace=True
 
-from .segy cimport segy, SEGYTrace, SEGY, BaseTraceIterator, copy_of
-from .cwp cimport bfdesign
+from ..segy cimport segy, SEGYTrace, SEGY, BaseTraceIterator, copy_of
+from ..cwp cimport bfdesign
 from libc.math cimport sqrt
 from libc.string cimport memcpy
 
