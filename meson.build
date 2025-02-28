@@ -1,5 +1,5 @@
 project(
-    'pyimager',
+    'seispy',
     'c', 'cython',
     version : '0.0.1',
     license: 'MIT',
@@ -25,4 +25,4 @@ _global_c_args = cc.get_supported_arguments(
 )
 add_project_arguments(_global_c_args, language : 'c')
 
-subdir('pyimager')
+subdir('seispy')

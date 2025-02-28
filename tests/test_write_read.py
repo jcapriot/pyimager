@@ -1,7 +1,7 @@
 import pytest
 import io
 import numpy as np
-from pyimager.synthetics import spike, synlv
+from seispy.synthetics import spike, synlv
 import numpy.testing as npt
 import time
 

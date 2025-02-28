@@ -1,5 +1,5 @@
 from libc.stdio cimport FILE
-from ._io cimport pyi_off_t
+from ._io cimport spy_off_t
 from .cwp cimport cwp_String
 from .su cimport Value
 cimport cython
@@ -232,7 +232,7 @@ cdef class SEGY:
         object file
         bint file_owner
         FILE *fd
-        pyi_off_t orig_pos
+        spy_off_t orig_pos
 
         # For in memory collection
         list traces

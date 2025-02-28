@@ -9,7 +9,7 @@ from libc.string cimport memset, memcpy
 cimport cython
 cimport cpython.buffer as pybuf
 
-from ._io cimport PyFile_Dup, PyFile_DupClose, pyi_off_t, pyi_fseek
+from ._io cimport PyFile_Dup, PyFile_DupClose, spy_off_t, spy_fseek
 
 import os
 from contextlib import nullcontext
@@ -343,7 +343,7 @@ cdef class SEGY:
             SEGYTrace trace
             FILE *fd
             bint file_owner
-            pyi_off_t orig_pos = 0
+            spy_off_t orig_pos = 0
             int ntr = 0
 
         if hasattr(filename, 'read'):
@@ -410,7 +410,7 @@ cdef class SEGY:
             SEGYTrace trace
             FILE *fd
             bint file_owner
-            pyi_off_t orig_pos = 0
+            spy_off_t orig_pos = 0
 
 
         if hasattr(filename, 'write'):
@@ -514,7 +514,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
         FILE *fd
         bint owner
         object file
-        pyi_off_t orig_pos
+        spy_off_t orig_pos
 
     def __cinit__(self):
         self.fd = NULL
@@ -551,7 +551,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
             self.fd, self.orig_pos = PyFile_Dup(file, "rb")
             if self.owner:
                 # Advance fd to the start of the traces:
-                pyi_fseek(self.fd, sizeof(int), SEEK_CUR)
+                spy_fseek(self.fd, sizeof(int), SEEK_CUR)
         except Exception as err:
             self._close_file()
             raise err

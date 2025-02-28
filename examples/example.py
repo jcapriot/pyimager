@@ -1,6 +1,6 @@
-from pyimager.synthetics import spike, synlv
-from pyimager.filters import butterworth_bandpass
-from pyimager.plotting import wiggle
+from seispy.synthetics import spike, synlv
+from seispy.filters import butterworth_bandpass
+from seispy.plotting import wiggle
 import matplotlib.pyplot as plt
 import numpy as np
 

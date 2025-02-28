@@ -24,7 +24,7 @@
 #endif
 
 #ifdef _WIN32
-static FILE *pyi_fdopen(int fd, const char *mode){
+static FILE *spy_fdopen(int fd, const char *mode){
     FILE *f;
     _BEGIN_SUPPRESS_IPH
     f = _fdopen(fd, mode);
@@ -32,7 +32,7 @@ static FILE *pyi_fdopen(int fd, const char *mode){
     return f;
 }
 #else
-    #define pyi_fdopen fdopen
+    #define spy_fdopen fdopen
 #endif
 
 /* 64 bit file position support, also on win-amd64. Issue gh-2256 */
@@ -41,26 +41,26 @@ static FILE *pyi_fdopen(int fd, const char *mode){
     #include <io.h>
     #include <stdint.h>
 
-    #define pyi_off_t int64_t
-    #define pyi_fseek _fseeki64
-    #define pyi_ftell _ftelli64
-    #define pyi_lseek _lseeki64
+    #define spy_off_t int64_t
+    #define spy_fseek _fseeki64
+    #define spy_ftell _ftelli64
+    #define spy_lseek _lseeki64
 #else
     #ifdef HAVE_FSEEKO
-        #define pyi_fseek fseeko
+        #define spy_fseek fseeko
     #else
-        #define pyi_fseek fseek
+        #define spy_fseek fseek
     #endif
     #ifdef HAVE_FTELLO
-        #define pyi_ftell ftello
+        #define spy_ftell ftello
     #else
-        #define pyi_ftell ftell
+        #define spy_ftell ftell
     #endif
     #include <sys/types.h>
     #ifndef _WIN32
         #include <unistd.h>
     #endif
-    #define pyi_lseek lseek
-    #define pyi_off_t off_t
+    #define spy_lseek lseek
+    #define spy_off_t off_t
 #endif
 #endif

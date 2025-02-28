@@ -42,7 +42,7 @@ python_sources = [
     'plotting.py',
 ]
 
-module_path = 'pyimager'
+module_path = 'seispy'
 
 py.install_sources(
   python_sources,

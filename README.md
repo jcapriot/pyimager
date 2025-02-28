@@ -1,4 +1,4 @@
-# pyimager
+# seispy
 This package is currently a proof of concept of directly integrating seismic unix into python. For now
 we have included SU source code with enough modifications to get this simple workflow to successfully
 execute on Linux, MacOS, **and Windows**!
