@@ -3,7 +3,6 @@ import io
 import numpy as np
 from seispy.synthetics import spike, synlv
 import numpy.testing as npt
-import time
 
 def test_write_read_path(tmp_path, f_name='spike.segy'):
     file_path = tmp_path / f_name
