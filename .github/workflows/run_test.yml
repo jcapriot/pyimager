@@ -38,7 +38,7 @@ jobs:
     - name: Create environment
       run: |
         conda install --quiet --yes -c conda-forge \
-          pip numpy cython meson-python meson ninja
+          pip numpy cython meson-python meson ninja pytest
 
     - name: Install Our Package
       run: |
