@@ -22,6 +22,16 @@ py.extension_module(
     dependencies: [py_dep],
 )
 
+py.extension_module(
+    'segy_standard',
+    'segy_standard.pyx',
+    cython_args: cython_args,
+    c_args: io_args,
+    install: true,
+    subdir: module_path,
+    dependencies: [py_dep, np_dep],
+)
+
 python_sources = []
 
 py.install_sources(
