@@ -13,10 +13,8 @@ cdef extern from "spy_trace.h" nogil:
         double rx_loc[3]
         double mid_point[3]
         int line_id
-        int trace_id #line number, trace_id pair)
-        size_t ensemble_number          # ensemble ID number
+        int trace_id
         size_t ensemble_trace_number    # trace ID within ensemble
-        int ensemble_type               # type of ensemble
         int sampling_unit               # 0 = s, 1  = meters
         int sampling_domain             # 0 (sample unit domain), 1 = sample_unit fourier domain
 
@@ -57,8 +55,15 @@ cdef class Trace:
 
     cdef to_file_descriptor(self, FILE * fd)
 
+cdef class CollectionHeader:
+    cdef:
+        size_t n_traces
+        int ensemble_type
+        bint uniform_traces
+
 cdef class TraceCollection:
     cdef:
+        CollectionHeader hdr
         # For file based collection
         object file
         bint file_owner
@@ -71,15 +76,13 @@ cdef class TraceCollection:
         # For an iterator passthrough
         BaseTraceIterator iterator
 
-        int ntr
-
     @staticmethod
     cdef TraceCollection from_trace_iterator(BaseTraceIterator iterator)
 
 
 cdef class BaseTraceIterator:
     cdef:
-        int i
-        int n_traces
+        size_t i
+        size_t n_traces
 
     cdef Trace next_trace(self)

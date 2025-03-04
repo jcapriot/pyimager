@@ -185,13 +185,19 @@ cdef class Trace:
     def __releasebuffer__(self, Py_buffer *buffer):
         pass
 
+cdef class CollectionHeader:
+
+    def __cinit__(self):
+        self.n_traces = 0
+        self.ensemble_type = 0
+        self.uniform_traces = False
+
 cdef class TraceCollection:
+
     def __cinit__(self):
         self.file = None
         self.traces = None
         self.iterator = None
-        self.ntr = 0
-
 
     def __init__(self, trace_data, d_sample, **kwargs):
         n_tr = len(trace_data)
@@ -199,14 +205,14 @@ cdef class TraceCollection:
         for trace in trace_data:
             traces.append(Trace(trace, d_sample=d_sample, **kwargs))
         self.traces = traces
-        self.ntr = len(traces)
+        self.hdr.n_traces = len(traces)
 
     def __len__(self):
-        return self.ntr
+        return self.hdr.n_traces
 
     @property
-    def n_trace(self):
-        return self.ntr
+    def n_traces(self):
+        return self.hdr.n_traces
 
     @classmethod
     def from_file(cls, filename):
@@ -215,7 +221,7 @@ cdef class TraceCollection:
             FILE *fd
             bint file_owner
             spy_off_t orig_pos = 0
-            int ntr = 0
+            size_t ntr = 0
 
         if hasattr(filename, 'read'):
             ctx = nullcontext(filename)
@@ -228,7 +234,7 @@ cdef class TraceCollection:
         cdef TraceCollection new_segy = TraceCollection.__new__(TraceCollection)
 
         new_segy.file = filename
-        new_segy.ntr = ntr
+        new_segy.hdr.n_traces = ntr
 
         return new_segy
 
@@ -236,7 +242,7 @@ cdef class TraceCollection:
     cdef TraceCollection from_trace_iterator(BaseTraceIterator iterator):
         cdef TraceCollection collect = TraceCollection.__new__(TraceCollection)
         collect.iterator = iterator
-        collect.ntr = iterator.n_traces
+        collect.hdr.n_trace = iterator.n_traces
         return collect
 
     @property
@@ -253,7 +259,7 @@ cdef class TraceCollection:
 
     def __iter__(self):
         if self.on_disk:
-            return _FileTraceIterator(self.file, self.ntr)
+            return _FileTraceIterator(self.file, self.hdr.n_traces)
         elif self.in_memory:
             return _MemoryTraceIterator(self.traces)
         elif self.is_iterator:
@@ -294,7 +300,7 @@ cdef class TraceCollection:
         with ctx as file:
             fd, orig_pos = PyFile_Dup(file, "wb")
             try:
-                fwrite(&self.ntr, sizeof(self.ntr), 1, fd)
+                fwrite(&self.hdr.n_traces, sizeof(self.hdr.n_traces), 1, fd)
                 for trace in self:
                     trace.to_file_descriptor(fd)
             finally:
@@ -319,7 +325,7 @@ cdef class TraceCollection:
             Trace trace
 
         with ctx as stream_ctx:
-            stream_ctx.write(PyBytes_FromStringAndSize(<char *> &self.ntr, sizeof(self.ntr)))
+            stream_ctx.write(PyBytes_FromStringAndSize(<char *> &self.hdr.n_traces, sizeof(self.hdr.n_traces)))
             for trace in self:
                 stream_ctx.write(PyBytes_FromStringAndSize(<char *> trace.tr, SPY_TRC_HDR_SIZE))
                 stream_ctx.write(PyBytes_FromStringAndSize(<char *> trace.tr.data, sizeof(float)*trace.n_sample))
@@ -399,7 +405,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
         # and clear my reference to the original
         self.file = None
 
-    def __init__(self, file, int n_traces):
+    def __init__(self, file, size_t n_traces):
         if not hasattr(file, "read"):
             # open the file
             file = open(os.fspath(file), "rb")

@@ -192,7 +192,7 @@ cdef class synlv(BaseTraceIterator):
             float xs, xr, xo
 
         hdr.line_id = 1
-        hdr.trace_id= self.tracl
+        hdr.trace_id = self.tracl
         hdr.d_sample = self.dt
         hdr.sample_start = self.ft
 

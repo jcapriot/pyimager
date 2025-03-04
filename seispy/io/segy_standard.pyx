@@ -1,8 +1,10 @@
 # cython: embedsignature=True, language_level=3
 # cython: linetrace=True
 
-from libc.string cimport memset, memcpy
-import sys
+from libc.math cimport log10, fabs, round, floor
+from libc.string cimport memset
+from libc.limits cimport INT_MIN, INT_MAX, SHRT_MIN, SHRT_MAX
+cimport ..container as spyc
 
 cdef:
     # Expected Sizes
@@ -158,6 +160,63 @@ def binary_header_size():
 
 def trace_header_size():
     return TRC_HDR_SIZE
+
+cdef class SEGYTrace:
+    cdef:
+        trace_header hdr
+        extended_trace_header ext_hdr
+        float[::1] data
+
+    @staticmethod
+    cdef SEGYTrace from_spy_trace(spyc.Trace spy_tr, spyc.CollectionHeader coll_hdr):
+        cdef:
+            SEGYTrace segy = SEGYTrace.__new__(SEGYTrace)
+            spyc.spy_trace_header *spy_hdr = &spy_tr.hdr
+            trace_header *hdr = segy.hdr
+            extended_trace_header *ext_hdr = segy.ext_hdr
+            double t0,
+            i2 t_scale = 0
+        with nogil:
+            segy.data = spy_tr.data
+
+            ext_hdr.nsamps = spy_hdr.n_sample
+            ext_hdr.dt = spy_hdr.d_sample * 1_000_000.0 # in micro seconds
+
+            # in milliseconds
+            ms_t0 = spy_hdr.sample_start * 1_000.0
+
+            # Try to fit as much precision as possible into the delay using the scale as possible
+            if ms_t0 > 0:
+                t_scale = <i2> ((SHRT_MAX - 1) / ms_t0)
+            elif ms_t0 < 0:
+                t_scale = <i2> ((SHRT_MIN + 1) / ms_t0)
+
+            hdr.delay = ms_t0
+
+            ext_hdr.offset = spy_hdr.offset
+
+            ext_hdr.sht_x = spy_hdr.tx_loc[0]
+            ext_hdr.sht_y = spy_hdr.tx_loc[1]
+            ext_hdr.selev = spy_hdr.tx_loc[2]
+
+            ext_hdr.rec_x = spy_hdr.rx_loc[0]
+            ext_hdr.rec_y = spy_hdr.rx_loc[1]
+            ext_hdr.relev = spy_hdr.rx_loc[2]
+
+            ext_hdr.cdp_x = spy_hdr.mid_point[0]
+            ext_hdr.cdp_y = spy_hdr.mid_point[1]
+
+            ext_hdr.n_exttrchdr = 1
+
+            hdr.trctype = spy_hdr.line_id
+            ext_hdr.ffid = spy_hdr.trace_id
+            hdr.coorunit = 1
+
+            if coll_hdr.ensemble_type == spyc.SPY_TX_GATHER:
+                ext_hdr.ffid = spy_hdr.ensemble_trace_number
+                hdr.chan = spy_hdr.line_id
+
+            ext_hdr.cdp = spy_hdr
 
 
 cdef class TraceCollectionBinaryHeader:
