@@ -1,3 +1,6 @@
+# cython: embedsignature=True, language_level=3
+# cython: linetrace=True
+
 from libc.string cimport memset, memcpy
 import sys
 

@@ -1,14 +1,18 @@
+# cython: embedsignature=True, language_level=3
+# cython: linetrace=True
+
 from libc.stdio cimport FILE
-from libc.stdint cimport uint16_t, uint32_t, uint64_t, int16_t, int32_t, int64_t
-from numpy cimport float32_t, float64_t
+
 
 
 cdef extern from * nogil:
     """
-    #ifndef _IO_HEADER_H
-    #define _IO_HEADER_H
+    #ifndef _IO_HEADER_PXD
+    #define _IO_HEADER_PXD
 
     #include <stdio.h>
+    #include <stddef.h>
+    #include <stdint.h>
     #include "Python.h"
 
     #if defined _MSC_VER && _MSC_VER >= 1900
@@ -71,64 +75,6 @@ cdef extern from * nogil:
         #define spy_off_t off_t
     #endif
 
-    #ifdef _MSC_VER
-    #define spy_bswap_u16(x) _byteswap_ushort(x) //relying on ushort being 16 bits on mscv compiler
-    #define spy_bswap_u32(x) _byteswap_ulong(x)  //relying on ulong being 32 bits on mscv compiler
-    #define spy_bswap_u64(x) _byteswap_uint64(x)
-
-    #elif defined(__APPLE__)
-
-    // Mac OS X / Darwin features
-    #include <libkern/OSByteOrder.h>
-    #define spy_bswap2(x) OSSwapInt16(x)
-    #define spy_bswap4(x) OSSwapInt32(x)
-    #define spy_bswap8(x) OSSwapInt64(x)
-
-    #else
-
-    #ifdef DHAVE___BUILTIN_BSWAP16:
-    #define spy_bswap_u16(x) __builtin_bswap16(x)
-    #else
-    #include "stdint.h"
-    static inline uint16_t
-    spy_bswap_u16(uint16_t x)
-    {
-        return ((x & 0xffu) << 8) | (x >> 8);
-    }
-    #endif
-
-    #ifdef DHAVE___BUILTIN_BSWAP32:
-    #define spy_bswap_u32(x) __builtin_bswap32(x)
-    #else
-    #include "stdint.h"
-    static inline uint32_t
-    spy_bswap_u32(uint32_t x)
-    {
-        return ((x & 0xffu) << 24) | ((x & 0xff00u) << 8) |
-       ((x & 0xff0000u) >> 8) | (x >> 24);
-    }
-    #endif
-
-    #ifdef DHAVE___BUILTIN_BSWAP64:
-    #define spy_bswap_u64(x) __builtin_bswap64(x)
-    #else
-    #include "stdint.h"
-    static inline uint64_t
-    spy_bswap_u64(uint64_t x)
-    {
-        return ((x & 0xffULL) << 56) |
-               ((x & 0xff00ULL) << 40) |
-               ((x & 0xff0000ULL) << 24) |
-               ((x & 0xff000000ULL) << 8) |
-               ((x & 0xff00000000ULL) >> 8) |
-               ((x & 0xff0000000000ULL) >> 24) |
-               ((x & 0xff000000000000ULL) >> 40) |
-               ( x >> 56);
-    }
-    #endif
-
-    #endif
-
     #endif
     """
     ctypedef int spy_off_t
@@ -138,9 +84,6 @@ cdef extern from * nogil:
     int spy_fseek(FILE *stream, spy_off_t offset, int whence)
     spy_off_t spy_ftell(FILE *stream)
 
-    uint16_t spy_bswap_u16(uint32_t x)
-    uint32_t spy_bswap_u32(uint32_t x)
-    uint64_t spy_bswap_u64(uint32_t x)
 
 
 cdef (FILE *, spy_off_t) PyFile_Dup(object file, char* mode)

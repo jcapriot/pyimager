@@ -28,6 +28,16 @@ py.extension_module(
     c_args: io_args,
     install: true,
     subdir: module_path,
+    dependencies: [py_dep],
+)
+
+py.extension_module(
+    'byteswapping',
+    'byteswapping.pyx',
+    cython_args: cython_args,
+    c_args: io_args,
+    install: true,
+    subdir: module_path,
     dependencies: [py_dep, np_dep],
 )
 
