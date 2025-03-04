@@ -12,9 +12,9 @@ def wiggle(data, ax=None, color='k'):
     line_plots = []
     y_max = 0
     for i, trace in enumerate(data):
-        n1 = trace.ns
-        dt = trace.dt / 1_000_000
-        ymax = max(y_max, dt * (n1 - 1))
+        n1 = trace.n_sample
+        dt = trace.d_sample
+        y_max = max(y_max, dt * (n1 - 1))
         if dt == 0:
             warnings.warn("trace has a 0 sample spacing.")
         s_locs = np.linspace(0, n1*dt, n1, endpoint=False)
@@ -25,7 +25,7 @@ def wiggle(data, ax=None, color='k'):
         trace_plots.append(fill)
         line_plots.append(line)
     ax.tick_params(top=True, labeltop=True, bottom=False, labelbottom=False)
-    ax.set_ylim([ymax, 0])
+    ax.set_ylim([y_max, 0])
     return trace_plots, line_plots
 
 def image(data, ax=None, cmap='seismic', **kwargs):

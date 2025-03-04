@@ -1,37 +1,42 @@
 # cython: embedsignature=True, language_level=3
 # cython: linetrace=True
 
-from ..segy cimport SEGYTrace, SEGY, BaseTraceIterator, segy, new_trace
+from ..container cimport (
+    Trace, TraceCollection, BaseTraceIterator, new_trace,
+    spy_trace, SPY_COMMON_MIDPOINT, SPY_TX_GATHER, spy_trace_header
+)
+from ..cwp cimport mkhdiff
 from ..par cimport Reflector, Wavelet, breakReflectors, makeref, makericker
 import numpy as np
 from libc.stdlib cimport malloc, free
 from libc.float cimport FLT_MAX
-from libc.math cimport sqrtf
+from libc.math cimport sqrtf, fabs
 cimport cython
 
 cdef extern from "synthetics.h" nogil:
     void susynlv_filltrace(
-            segy *tr, int shots, int kilounits, int tracl,
-            float fxs, int ixsm, float dxs,
-            int ixo, float *xo, float dxo, float fxo,
-            float dxm, float fxm, float dxsm,
-            float v00, float dvdx, float dvdz, int ls, int er, int ob, Wavelet *w,
-            int nr, Reflector *r, int nt, float dt, float ft
+            spy_trace *trace, float v00, float dvdx, float dvdz,
+            int ls, int er, int ob,
+            Wavelet *w, int nr, Reflector *r,
+            int lhd, int nhd, float *hd
     )
 
 cdef class synlv(BaseTraceIterator):
     cdef:
-        int shots, kilounits, ls, er, ob
-        int nxsm, nr, nxo, ns
+        bint shots, ls, er, ob
+        int ns, nr, nxo, nt
 
-        float fxs, dxs, dxo, fxo, dxm, fxm, dxsm, v00, dvdx, dvdz, ft, dt
+        float v00, dvdx, dvdz, ft, dt
+        float[::1] ref_points
         float[::1] xo
 
         # iterator indices
         int ixsm, ixo, tracl
+        int lhd, nhd
 
         Wavelet *w
         Reflector *r
+        float *hd_filt
 
     def __dealloc__(self):
         # clear the memory used by wavelet and reflector objects
@@ -44,10 +49,13 @@ cdef class synlv(BaseTraceIterator):
                 free(self.r[i].rs)
             free(self.r)
             self.r = NULL
+        if self.hd_filt is not NULL:
+            free(self.hd_filt)
+            self.hd_filt = NULL
 
     def __init__(
             self,
-            int nt=101, float dt=0.04, float ft=0.0, bint kilounits=True,
+            int nt=101, float dt=0.04, float ft=0.0,
             int nxo=1, float dxo=0.05, float fxo=0.0, xo=None,
             int nxm=101, float dxm=0.05, float fxm=0.0,
             int nxs=0, float dxs=0.05, float fxs=0.0,
@@ -65,24 +73,13 @@ cdef class synlv(BaseTraceIterator):
         cdef float tmin_c = tmin
         cdef float fpeak_c = fpeak
 
-        self.ns = nt
+        self.nt = nt
 
         # options:
-        self.kilounits = kilounits
         self.ls = ls
         self.er = er
         self.ob = ob
 
-        # parameters
-        self.fxs = fxs
-        self.dxs = dxs
-        self.dxm = dxm
-
-        self.dxo = dxo
-        self.fxo = fxo
-
-        # self.dxm = dxm
-        self.fxm = fxm
         self.ft = ft
         self.dt = dt
 
@@ -90,15 +87,13 @@ cdef class synlv(BaseTraceIterator):
         midpoints = bool(nxm)
         if self.shots and midpoints:
             raise TypeError("Cannot specify both shot and midpoint sampling!")
-
-        if self.shots:
-            self.nxsm = nxs
-            self.dxsm = dxs
-        elif midpoints:
-            self.nxsm = nxm
-            self.dxsm = dxm
-        else:
+        elif not self.shots and not midpoints:
             raise TypeError("Must specify one of shot or midpoint samplings!")
+        if self.shots:
+            self.ns = nxs
+        else:
+            self.ns = nxm
+
 
         if xo is None:
             self.xo = np.empty(nxo, dtype=np.float32)
@@ -107,7 +102,15 @@ cdef class synlv(BaseTraceIterator):
         else:
             self.xo = np.require(xo, dtype=np.float32, flags='C')
         self.nxo = self.xo.shape[0]
-        self.n_traces = self.nxo * self.nxsm
+        self.n_traces = self.nxo * self.ns
+
+        self.ref_points = np.empty(self.ns, dtype=np.float32)
+        if self.shots:
+            for ixsm in range(self.ns):
+                self.ref_points[ixsm] = fxs + ixsm * dxs
+        else:
+            for ixsm in range(self.ns):
+                self.ref_points[ixsm] = fxm + ixsm * dxm  # are actually the midpoints
 
         if reflectors is None:
             reflectors = [[1, (1, 4), (2, 2)]]
@@ -169,30 +172,53 @@ cdef class synlv(BaseTraceIterator):
         self.ixsm = 0
         self.tracl = 0
 
+        # from susynlv.c:
+        # LHD = 20
+        # NHD = 1 + 2 * LHD
+        self.lhd = 20
+        self.nhd = 1  +2 * self.lhd
+        self.hd_filt = <float * > malloc(sizeof(float) * self.nhd)
+        mkhdiff(self.dt, self.lhd, self.hd_filt)
+
     @cython.boundscheck(False)
-    cdef SEGYTrace next_trace(self):
-        if self.ixsm == self.nxsm:
+    cdef Trace next_trace(self):
+        if self.ixsm == self.ns:
             raise StopIteration()
 
         # susynlv_filltrace will fill with zeros
-        cdef segy *tr = new_trace(self.ns, zero_fill=False)
-        tr.trid = 1
-        tr.counit = 1
-        # tr.ns = self.ns
-        tr.dt = <unsigned short> (1.0e6*self.dt)
-        tr.delrt = <short> (1.0e3*self.ft)
-        tr.ntr = self.n_traces
+        cdef:
+            spy_trace *tr = new_trace(self.nt, zero_fill=False)
+            spy_trace_header *hdr = &(tr.hdr)
+            float xs, xr, xo
+
+        hdr.line_id = 1
+        hdr.trace_id= self.tracl
+        hdr.d_sample = self.dt
+        hdr.sample_start = self.ft
+
+        xs = self.ref_points[self.ixsm]
+        xo = self.xo[self.ixo]
+        if self.shots:
+            hdr.ensemble_type = SPY_TX_GATHER
+        else:
+            xs -= 0.5 * xo
+            hdr.ensemble_type = SPY_COMMON_MIDPOINT
+
+        xr = xs + xo
+
+        hdr.tx_loc[0] = xs
+        hdr.rx_loc[0] = xr
+        hdr.mid_point[0] = 0.5 * (xs + xr)
+        hdr.offset = fabs(xo)
+        hdr.ensemble_number = 1 + self.ixsm
+        hdr.ensemble_trace_number = 1 + self.ixo
 
         susynlv_filltrace(
             tr,
-            self.shots, self.kilounits, self.tracl,
-            self.fxs, self.ixsm, self.dxs,
-            self.ixo, &self.xo[0], self.dxo, self.fxo,
-            self.dxm, self.fxm, self.dxsm,
             self.v00, self.dvdx, self.dvdz,
             self.ls, self.er, self.ob,
             self.w, self.nr, self.r,
-            self.ns, self.dt, self.ft,
+            self.lhd, self.nhd, self.hd_filt
         )
 
         # post update iters
@@ -201,4 +227,4 @@ cdef class synlv(BaseTraceIterator):
         if self.ixo == self.nxo:
             self.ixo = 0
             self.ixsm += 1
-        return SEGYTrace.from_trace(tr, True, True)
+        return Trace.from_trace(tr, True, True)

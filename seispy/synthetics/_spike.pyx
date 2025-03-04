@@ -1,20 +1,23 @@
 # cython: embedsignature=True, language_level=3
 # cython: linetrace=True
 
-from ..segy cimport SEGYTrace, SEGY, BaseTraceIterator, segy, new_trace
+from ..container cimport (
+    Trace, TraceCollection, BaseTraceIterator, spy_trace, spy_trace_header, new_trace
+)
 import numpy as np
 
 cdef class spike(BaseTraceIterator):
     cdef:
-        unsigned short nt, dt
-        int offset
+        size_t nt
+        double dt
+        double offset
         # spike parameters
         int[:, ::1] spikes
 
-    def __init__(self, unsigned short nt=64, int ntr=32, float dt=0.004, int offset=400, spikes=None):
+    def __init__(self, size_t nt=64, size_t ntr=32, double dt=0.004, double offset=400, spikes=None):
         self.nt = nt
         self.n_traces = ntr
-        self.dt = <unsigned short > dt * 1_000_000
+        self.dt = dt
         self.offset = offset
 
         if spikes is None:
@@ -27,19 +30,21 @@ cdef class spike(BaseTraceIterator):
 
         self.spikes = np.require(spikes, dtype=np.int32, requirements='C')
 
-    cdef SEGYTrace next_trace(self):
+    cdef Trace next_trace(self):
         if self.i == self.n_traces:
             raise StopIteration()
         cdef:
-            segy *tr = new_trace(self.nt)
+            spy_trace *tr = new_trace(self.nt)
+            spy_trace_header *hdr = &(tr.hdr)
             int it, ix
 
-        tr.dt = self.dt
-        tr.offset = self.offset
-        tr.tracl = self.i + 1
-        tr.ntr = self.n_traces
+        hdr.d_sample = self.dt
+        hdr.tx_loc[0] = self.i
+        hdr.rx_loc[0] = self.i + self.offset
+        hdr.offset = self.offset
+        hdr.trace_id = self.i + 1
         for spike in self.spikes:
             if spike[0] == self.i:
-                tr.data[spike[it]] = 1.0
+                tr.data[spike[1]] = 1.0
         self.i += 1
-        return SEGYTrace.from_trace(tr, True, True)
+        return Trace.from_trace(tr, True, True)

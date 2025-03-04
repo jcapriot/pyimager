@@ -1,14 +1,14 @@
 # cython: embedsignature=True, language_level=3
 # cython: linetrace=True
 
-from ..segy cimport segy, SEGYTrace, SEGY, BaseTraceIterator, copy_of
+from ..container cimport spy_trace, Trace, TraceCollection, BaseTraceIterator, copy_of
 from ..cwp cimport bfdesign
 from libc.math cimport sqrt
 from libc.string cimport memcpy
 
 cdef extern from "su_filters.h":
-    void bfhighpass_trace(int zerophase, int npoles, float f3db, segy *tr_in, segy *tr)
-    void bflowpass_trace(int zerophase, int npoles, float f3db, segy *tr_in, segy *tr)
+    void bfhighpass_trace(int zerophase, int npoles, float f3db, spy_trace *tr_in, spy_trace *tr)
+    void bflowpass_trace(int zerophase, int npoles, float f3db, spy_trace *tr_in, spy_trace *tr)
 
 cdef class butterworth_bandpass(BaseTraceIterator):
     cdef:
@@ -16,7 +16,7 @@ cdef class butterworth_bandpass(BaseTraceIterator):
         int low_cut, high_cut
         int npoleslo, npoleshi
         float f3dblo, f3dbhi, f3dblo_in, f3dbhi_in
-        unsigned short last_dt
+        float last_dt
         BaseTraceIterator iter_in
         int design_low, design_high
         int none_f3dblo, none_f3dbhi, none_fpasslo, none_fstoplo, none_fpasshi, none_fstophi
@@ -31,7 +31,7 @@ cdef class butterworth_bandpass(BaseTraceIterator):
         bint zerophase=True,
     ):
         self.last_dt = 0
-        if isinstance(trace_iter, SEGY):
+        if isinstance(trace_iter, TraceCollection):
             trace_iter = trace_iter.__iter__()
         self.iter_in = trace_iter
         self.n_traces = self.iter_in.n_traces
@@ -86,49 +86,47 @@ cdef class butterworth_bandpass(BaseTraceIterator):
         else:
             self.fstophi = f_stop_high
 
-    cdef void set_filter_params(self, segy *tr):
-        cdef float dt
+    cdef void set_filter_params(self, spy_trace *tr):
         cdef float fstoplo, fstophi, fpasslo, fpasshi
-        if tr.dt != self.last_dt:
-            self.last_dt = tr.dt
-            dt = <float>((<double> tr.dt)/1000000.0)
+        if tr.hdr.d_sample != self.last_dt:
+            self.last_dt = tr.hdr.d_sample
 
             if self.low_cut:
                 if self.design_low:
                     if self.none_fstoplo:
                         fstoplo = .10 * 0.5 # nyq * dt
                     else:
-                        fstoplo = self.fstoplo * dt
+                        fstoplo = self.fstoplo * tr.hdr.d_sample
                     if self.none_fpasslo:
                         fpasslo = .15 * 0.5 # nyq * dt
                     else:
-                        fpasslo = self.fpasslo * dt
+                        fpasslo = self.fpasslo * tr.hdr.d_sample
                     bfdesign(fpasslo, self.apasslo, fstoplo, self.astoplo, &self.npoleslo, &self.f3dblo)
                 elif self.none_f3dblo:
                     self.f3dblo = .15 * 0.5 # nyq * dt
                 else:
-                    self.f3dblo = self.f3dblo_in * dt
+                    self.f3dblo = self.f3dblo_in * tr.hdr.d_sample
 
             if self.high_cut:
                 if self.design_high:
                     if self.none_fstophi:
                         fstophi = .55 * 0.5 # nyq * dt
                     else:
-                        fstophi = self.fstophi * dt
+                        fstophi = self.fstophi * tr.hdr.d_sample
                     if self.none_fpasshi:
                         fpasshi = .40 * 0.5 # nyq * dt
                     else:
-                        fpasshi = self.fpasshi * dt
+                        fpasshi = self.fpasshi * tr.hdr.d_sample
                     bfdesign(fpasshi, self.apasshi, fstophi, self.astophi, &self.npoleshi, &self.f3dbhi)
                 elif self.none_f3dbhi:
                     self.f3dbhi = .40 * 0.5 # nyq * dt
                 else:
-                    self.f3dbhi = self.f3dbhi_in * dt
+                    self.f3dbhi = self.f3dbhi_in * tr.hdr.d_sample
 
-    cdef SEGYTrace next_trace(self):
+    cdef Trace next_trace(self):
         cdef:
-            SEGYTrace trace = self.iter_in.next_trace()
-            segy *tr = copy_of(trace.tr)
+            Trace trace = self.iter_in.next_trace()
+            spy_trace *tr = copy_of(trace.tr)
         self.set_filter_params(tr)
 
         if self.low_cut:
@@ -137,4 +135,4 @@ cdef class butterworth_bandpass(BaseTraceIterator):
         if self.high_cut:
             bflowpass_trace(self.zerophase, self.npoleshi, self.f3dbhi, tr, tr)
 
-        return SEGYTrace.from_trace(tr, 1, 1)
+        return Trace.from_trace(tr, 1, 1)

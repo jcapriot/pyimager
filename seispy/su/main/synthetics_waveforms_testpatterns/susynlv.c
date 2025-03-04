@@ -6,6 +6,7 @@
 #include "su.h"
 #include "segy.h"
 #include "synthetics.h"
+#include <stddef.h>
 
 /*********************** self documentation **********************/
 char *sdoc[] = {
@@ -100,70 +101,13 @@ NULL};
 #define LHD 20
 #define NHD 1+2*LHD
 
-/* prototype */
-static void makeone (float v00, float dvdx, float dvdz, 
-	int ls, int er, int ob, Wavelet *w,
-	float xs, float zs, float xg, float zg,
-	int nr, Reflector *r, int nt, float dt, float ft, float *trace);
-
-
-void susynlv_filltrace(
-    segy *tr, int shots, int kilounits, int tracl,
-    float fxs, int ixsm, float dxs,
-    int ixo, float *xo, float dxo, float fxo,
-    float dxm, float fxm, float dxsm,
-    float v00, float dvdx, float dvdz, int ls, int er, int ob, Wavelet *w,
-    int nr, Reflector *r, int nt, float dt, float ft
-){
-    float xs, zs, xg, zg;
-
-    /* compute source and receiver coordinates */
-    if (shots)
-        xs = fxs+ixsm*dxs;
-    else
-        xs = fxm+ixsm*dxm-0.5*xo[ixo];
-    zs = 0.0;
-    xg = xs+xo[ixo];
-    zg = 0.0;
-
-    /* set segy trace header parameters */
-    tr->tracl = tr->tracr = tracl;
-    if (shots) {
-        tr->fldr = 1+ixsm;
-        tr->tracf = 1+ixo;
-        tr->d2 = dxo;
-        tr->f2 = fxo;
-    } else {
-        tr->cdp = 1+ixsm;
-        tr->cdpt = 1+ixo;
-        tr->d2 = dxm;
-        tr->f2 = fxm;
-    }
-    if (kilounits==1) {
-        tr->offset = NINT(1000.0*(dxsm>0.0?xo[ixo]:-xo[ixo]));
-        tr->sx = NINT(1000.0*xs);
-        tr->gx = NINT(1000.0*xg);
-    } else {
-        tr->offset = NINT((dxsm>0.0?xo[ixo]:-xo[ixo]));
-        tr->sx = NINT(xs);
-        tr->gx = NINT(xg);
-    }
-
-    /* make one trace */
-    makeone(v00,dvdx,dvdz,ls,er,ob,w,
-        xs,zs,xg,zg,
-        nr,r,nt,dt,ft,tr->data);
-}
-
-
-static void makeone (float v00, float dvdx, float dvdz, 
-	int ls, int er, int ob, Wavelet *w,
-	float xs, float zs, float xg, float zg,
-	int nr, Reflector *r, int nt, float dt, float ft, float *trace)
+void susynlv_filltrace(spy_trace *trace, float v00, float dvdx, float dvdz,
+	int ls, int er, int ob, Wavelet *w, int nr, Reflector *r, int lhd, int nhd, float *hd)
 /*****************************************************************************
 Make one synthetic seismogram for linear velocity v(x,z) = v00+dvdx*x+dvdz*z
 ******************************************************************************
 Input:
+trace   spy_trace
 v00		velocity v at (x=0,z=0)
 dvdx		derivative dv/dx of velocity v with respect to x
 dvdz		derivative dv/dz of velocity v with respect to z
@@ -171,37 +115,39 @@ ls		=1 for line source amplitudes; =0 for point source
 er		=1 for exploding, =0 for normal reflector amplitudes
 ob		=1 to include cos obliquity factors; =0 to omit
 w		wavelet to convolve with trace
-xs		x coordinate of source
-zs		z coordinate of source
-xg		x coordinate of receiver group
-zg		z coordinate of receiver group
+xs = tr.hdr.tx_loc[0]		x coordinate of source
+zs = tr.hdr.tx_loc[2]		z coordinate of source
+xg = tr.hdr.rx_loc[0]		x coordinate of receiver group
+zg = tr.hdr.rx_loc[2]		z coordinate of receiver group
 nr		number of reflectors
 r		array[nr] of reflectors
-nt		number of time samples
-dt		time sampling interval
-ft		first time sample
+nt = tr.hdr.n_sample	number of time samples
+dt = tr.hdr.d_sample   time sampling interval
+ft = tr.hdr.sample_start   first time sample
 
 Output:
 trace		array[nt] containing synthetic seismogram
 *****************************************************************************/
 {
-	int it,ir,is,ns;
+	int ir,is,ns;
+	size_t it, nt;
 	float ar,ds,xd,zd,cd,sd,vs,vg,vd,cs,ss,ts,qs,cg,sg,tg,qg,
 		ci,cr,time,amp,*temp;
 	ReflectorSegment *rs;
-	int lhd=LHD,nhd=NHD;
-	static float hd[NHD];
-	static int madehd=0;
-	
-	/* if half-derivative filter not yet made, make it */
-	if (!madehd) {
-		mkhdiff(dt,lhd,hd);
-		madehd = 1;
-	}
+	float xs, zs, xg, zg, dt, ft;
+	spy_trace_header *hdr = &trace->hdr;
+
+	xs = hdr->tx_loc[0];
+	zs = hdr->tx_loc[2];
+	xg = hdr->rx_loc[0];
+	zg = hdr->rx_loc[2];
+	nt = hdr->n_sample;
+	dt = hdr->d_sample;
+	ft = hdr->sample_start;
 
 	/* zero trace */
 	for (it=0; it<nt; ++it)
-		trace[it] = 0.0;
+		trace->data[it] = 0.0;
 	
 	/* velocities at source and receiver */
 	vs = v00+dvdx*xs+dvdz*zs;
@@ -260,7 +206,7 @@ trace		array[nt] containing synthetic seismogram
 			amp *= (ci+cr)*ar*ds;
 				
 			/* add sinc wavelet to trace */
-			addsinc(time,amp,nt,dt,ft,trace);
+			addsinc(time,amp,nt,dt,ft,trace->data);
 		}
 	}
 	
@@ -268,10 +214,10 @@ trace		array[nt] containing synthetic seismogram
 	temp = ealloc1float(nt);
 	
 	/* apply half-derivative filter to trace */
-	convolve_cwp(nhd,-lhd,hd,nt,0,trace,nt,0,temp);
+	convolve_cwp(nhd,-lhd,hd,nt,0,trace->data,nt,0,temp);
 
 	/* convolve wavelet with trace */
-	convolve_cwp(w->lw,w->iw,w->wv,nt,0,temp,nt,0,trace);
+	convolve_cwp(w->lw,w->iw,w->wv,nt,0,temp,nt,0,trace->data);
 	
 	/* free workspace */
 	free1float(temp);

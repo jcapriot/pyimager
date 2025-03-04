@@ -1,15 +1,24 @@
 module_path = 'seispy/io'
 
-# check for file io options:
-have_fseeko = cc.has_function('fseeko', prefix: '#define _GNU_SOURCE\n#include <stdio.h>')
-have_ftello = cc.has_function('ftello', prefix: '#define _GNU_SOURCE\n#include <stdio.h>')
-
 io_args = []
-if have_fseeko
+# check for file io options:
+if cc.has_function('fseeko', prefix: '#define _GNU_SOURCE\n#include <stdio.h>')
     io_args += ['-DHAVE_FSEEKO']
 endif
-if have_ftello
+
+if cc.has_function('ftello', prefix: '#define _GNU_SOURCE\n#include <stdio.h>')
     io_args += ['-DHAVE_FTELLO']
+endif
+
+# Check for byteswapping builtins
+if cc.has_function('__builtin_bswap16')
+    io_args += ['-DHAVE___BUILTIN_BSWAP16']
+endif
+if cc.has_function('__builtin_bswap32')
+    io_args += ['-DHAVE___BUILTIN_BSWAP32']
+endif
+if cc.has_function('__builtin_bswap64')
+    io_args += ['-DHAVE___BUILTIN_BSWAP64']
 endif
 
 py.extension_module(
@@ -19,7 +28,7 @@ py.extension_module(
     c_args: io_args,
     install: true,
     subdir: module_path,
-    dependencies: [py_dep],
+    dependencies: [py_dep, np_dep],
 )
 
 py.extension_module(

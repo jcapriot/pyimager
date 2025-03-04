@@ -16,8 +16,6 @@ su_lib_srcs = [
     'readkfile.c',
     'tabplot.c',
     'valpkge.c',
-    'xdrbhdrsub.c',
-    'xdrhdrsub.c',
 ]
 
 su_include_dir = include_directories('include')

@@ -89,12 +89,12 @@ NULL};
  */
 /**************** end self doc ***********************************/
 
-void bfhighpass_trace(int zerophase, int npoles, float f3db, segy *tr_in, segy *tr){
+void bfhighpass_trace(int zerophase, int npoles, float f3db, spy_trace *tr_in, spy_trace *tr){
 
     if (tr == NULL){
         tr = tr_in;
     }
-    unsigned short nt = tr->ns;
+    unsigned short nt = tr->hdr.n_sample;
     bfhighpass(npoles,f3db,nt,tr_in->data,tr->data);
     if (zerophase) {
     register int i;
@@ -112,11 +112,11 @@ void bfhighpass_trace(int zerophase, int npoles, float f3db, segy *tr_in, segy *
     }
 }
 
-void bflowpass_trace(int zerophase, int npoles, float f3db, segy *tr_in, segy *tr){
+void bflowpass_trace(int zerophase, int npoles, float f3db, spy_trace *tr_in, spy_trace *tr){
     if (tr == NULL){
         tr = tr_in;
     }
-    unsigned short nt = tr->ns;
+    unsigned short nt = tr->hdr.n_sample;
     bflowpass(npoles,f3db,nt,tr_in->data,tr->data);
     if (zerophase) {
         register int i;

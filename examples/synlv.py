@@ -1,4 +1,4 @@
-from seispy.synthetics import spike, synlv
+from seispy.synthetics import synlv
 from seispy.filters import butterworth_bandpass
 from seispy.plotting import wiggle
 import matplotlib.pyplot as plt

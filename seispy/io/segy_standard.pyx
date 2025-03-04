@@ -1,12 +1,18 @@
 from libc.string cimport memset, memcpy
+import sys
 
 cdef:
     # Expected Sizes
     size_t TXT_HDR_SIZE = 3200
     size_t BIN_HDR_SIZE = 400
     size_t TRC_HDR_SIZE = 240
+    size_t TAP_LBL_SIZE = 180
 
     i2 UNKNOWN = 0
+
+    i4 BIG_ENDIAN = 0x01020304 #int.from_bytes(b'\x01\x02\x03\x04', sys.byteorder)
+    i4 LITTLE_ENDIAN = 0x04030201 #int.from_bytes(b'\x04\x03\x02\x01', sys.byteorder)
+    i4 PAIRWISE_BYTESWAP = 0x02010403 #int.from_bytes(b'\x02\x01\x04\x03', sys.byteorder)
 
     # data_format codes
     i2 DAT_F32_IBM = 1
@@ -72,10 +78,6 @@ cdef:
     i2 VIB_POL_248_293 = 7
     i2 VIB_POL_293_338 = 8
 
-    i4 BIG_ENDIAN = 0
-    i4 LITTLE_ENDIAN = 0
-    i4 PAIRWISE_BYTESWAP = 0
-
     #Time codes, rev 2
     i2 TIME_LOCAL = 1
     i2 TIME_GMT = 2
@@ -99,31 +101,63 @@ cdef:
     i2 SRV_OBS = 1152
     i2 SRV_RAND = 1280
 
+    i2 TRC_ID_OTHER = -1
+    i2 TRC_ID_TIME_SEISMIC = 1
+    i2 TRC_ID_DEAD = 2
+    i2 TRC_ID_DUMMY = 3
+    i2 TRC_ID_TIMEBREAK = 4
+    i2 TRC_ID_UPHOLE = 5
+    i2 TRC_ID_SWEEP = 6
+    i2 TRC_ID_TIMING = 7
+    i2 TRC_ID_WATERBRK = 8
+    i2 TRC_ID_NEARGUNSIG = 9
+    i2 TRC_ID_FARGUNSIG = 10
+    i2 TRC_ID_PRESSURE = 11
+    i2 TRC_ID_VERT = 12
+    i2 TRC_ID_CROSS = 13
+    i2 TRC_ID_INLINE = 14
+    i2 TRC_ID_ROT_VERT = 15
+    i2 TRC_ID_ROT_TRANS = 16
+    i2 TRC_ID_ROT_RADIAL = 17
+    i2 TRC_ID_VIBEMASS = 18
+    i2 TRC_ID_VIBEBASE = 19
+    i2 TRC_ID_VIBEGFORCE = 20
+    i2 TRC_ID_VIBEREF = 21
+    i2 TRC_ID_TV_PAIR = 22
+    i2 TRC_ID_TD_PAIR = 23
+    i2 TRC_ID_DV_PAIR = 24
+    i2 TRC_ID_DEPTH_DOMAIN = 25
+    i2 TRC_ID_GRAV_POT = 26
+    i2 TRC_ID_EFIELD_VERT = 27
+    i2 TRC_ID_EFIELD_CROSS = 28
+    i2 TRC_ID_EFIELD_INLINE = 29
+    i2 TRC_ID_ROT_EFIELD_VERT = 30
+    i2 TRC_ID_ROT_EFIELD_TRANS = 31
+    i2 TRC_ID_ROT_EFIELD_RAD = 32
+    i2 TRC_ID_BFIELD_VERT = 33
+    i2 TRC_ID_BFIELD_CROSS = 34
+    i2 TRC_ID_BFIELD_INLINE = 35
+    i2 TRC_ID_ROT_BFIELD_VERT = 36
+    i2 TRC_ID_ROT_BFIELD_TRANS = 37
+    i2 TRC_ID_ROT_BFIELD_RAD = 38
+    i2 TRC_ID_PITCH = 39
+    i2 TRC_ID_YAW = 40
+    i2 TRC_ID_ROLL = 41
 
-cdef:
-    ui1[4] _big = [1, 2, 3, 4]
-    ui1[4] _small = [4, 3, 2, 1]
-    ui1[4] _swapped = [2, 1, 4, 3]
-memcpy(&BIG_ENDIAN, &_big[0], 4)
-memcpy(&LITTLE_ENDIAN, &_small[0], 4)
-memcpy(&PAIRWISE_BYTESWAP, &_swapped[0], 4)
+def trace_label_size():
+    return TAP_LBL_SIZE
 
-print(BIG_ENDIAN, LITTLE_ENDIAN, PAIRWISE_BYTESWAP)
+def text_header_size():
+    return TXT_HDR_SIZE
 
-    # Survey Types
+def binary_header_size():
+    return BIN_HDR_SIZE
 
-if sizeof(binary_header) != BIN_HDR_SIZE:
-    raise Exception(
-        f"Incorrect compiled binary segy header size: {sizeof(binary_header)}, expected {BIN_HDR_SIZE}."
-    )
-
-if sizeof(trace_header) != TRC_HDR_SIZE:
-    raise Exception(
-        f"Incorrect compiled segy trace header size: {sizeof(trace_header)}, expected {TRC_HDR_SIZE}."
-    )
+def trace_header_size():
+    return TRC_HDR_SIZE
 
 
-cdef class SEGYBinaryHeader:
+cdef class TraceCollectionBinaryHeader:
     cdef:
         binary_header hdr
 

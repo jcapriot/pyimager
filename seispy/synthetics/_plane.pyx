@@ -1,15 +1,19 @@
 # cython: embedsignature=True, language_level=3
 # cython: linetrace=True
 
-from ..segy cimport SEGYTrace, SEGY, BaseTraceIterator, segy, new_trace
+from ..container cimport (
+    Trace, TraceCollection, BaseTraceIterator, spy_trace, spy_trace_header, new_trace
+)
 import numpy as np
+from libc.math cimport fabs
 
 cdef class plane(BaseTraceIterator):
     cdef:
-        unsigned short nt, dt
-        int offset
+        size_t nt
+        double dt
+        double offset
         bint taper
-        float msps
+        double msps
         # plane parameter holders
         float[:] dips
         int[:] cts
@@ -19,10 +23,10 @@ cdef class plane(BaseTraceIterator):
 
         int[:] tfes
 
-    def __init__(self, unsigned short nt=64, int ntr=32, bint taper=False, float dt=0.004, int offset=400, planes=None):
+    def __init__(self, size_t nt=64, size_t ntr=32, bint taper=False, double dt=0.004, double offset=400.0, planes=None):
         if planes is None:
             planes = [
-                # (dip ms/trace, trace_extent, center_time, center_trace)
+                # (dip ms/trace, n_trace_extent, i_center_time, i_center_trace)
                 (0, 3 * ntr//4, nt//2 - 1, ntr//2 - 1),
                 (4, 3 * ntr//4, nt//2 - 1, ntr//2 - 1),
                 (8, 3 * ntr//4, nt//2 - 1, ntr//2 - 1),
@@ -31,7 +35,7 @@ cdef class plane(BaseTraceIterator):
             nt = 64
             ntr = 64
             planes = [
-                # (dip ms/trace, trace_extent, center_time, center_trace)
+                # (dip ms/trace, n_trace_extent, i_center_time, i_center_trace)
                 (0, ntr//4, nt//2 - 1, 3 * ntr//4 - 1),
                 (4, ntr//4, nt//2 - 1, ntr//2 - 1),
                 (8, ntr//4, nt//2 - 1, ntr//4 - 1),
@@ -55,28 +59,31 @@ cdef class plane(BaseTraceIterator):
         self.tfes = np.zeros(n_planes, dtype=np.int32)
 
         self.nt = nt
-        self.dt = <unsigned short> (dt * 1_000_000)
-        self.msps = 1_000 * dt
+        self.dt = dt
+        self.msps = dt * 1_000
         self.offset = offset
         self.taper = taper
 
         self.n_traces = ntr
         self.n_planes = self.dips.shape[0]
 
-    cdef SEGYTrace next_trace(self):
+    cdef Trace next_trace(self):
         if self.i == self.n_traces:
             raise StopIteration()
         cdef:
-            segy *tr = new_trace(self.nt)
+            spy_trace *tr = new_trace(self.nt)
+            spy_trace_header *hdr = &(tr.hdr)
             int i, tfe, itr, itless, itmore, cx_i, dt_i, len_i
             float eps, fit, dip_i
 
         itr = self.i
 
-        tr.dt = self.dt
-        tr.offset = self.offset
-        tr.tracl = tr.tracr = self.i + 1
-        tr.ntr = self.n_traces
+        hdr.d_sample = self.dt
+        hdr.offset = fabs(self.offset)
+        hdr.line_id = 1
+        hdr.trace_id = self.i + 1
+        hdr.tx_loc[0] = self.i
+        hdr.rx_loc[0] = self.i + self.offset
 
         for i in range(self.n_planes):
             tfe = self.tfes[i]
@@ -110,4 +117,4 @@ cdef class plane(BaseTraceIterator):
 
                 self.tfes[i] += 1
         self.i += 1
-        return SEGYTrace.from_trace(tr, True, True)
+        return Trace.from_trace(tr, True, True)

@@ -1,9 +1,3 @@
-from libc.stdio cimport FILE
-from .io cimport spy_off_t
-from .cwp cimport cwp_String
-from .su cimport Value
-cimport cython
-
 cdef extern from "segy.h" nogil:
     int SU_NFLTS
 
@@ -171,7 +165,7 @@ cdef extern from "segy.h" nogil:
 
     int ISSEISMIC(int id)
 
-    int MAXSEGY
+    int MAXTraceCollection
     int SU_NKEYS
     int HDRBYTES
 
@@ -205,50 +199,3 @@ cdef extern from "segy.h" nogil:
     void printheader(const segy *tp)
 
     void tabplot(segy *tp, int itmin, int itmax)
-
-cdef segy* new_trace(int ns, bint zero_fill=?) nogil
-cdef segy* copy_of(segy *tr_in, bint copy_data=?) nogil
-cdef void del_trace(segy *tp, bint del_data) nogil
-
-@cython.final
-cdef class SEGYTrace:
-    cdef:
-        segy* tr
-        bint trace_owner
-        bint data_owner
-        float[::1] trace_data # For holding a reference if it came from python
-
-    @staticmethod
-    cdef SEGYTrace from_trace(segy *trace, bint trace_owner=?, bint data_owner=?)
-
-    @staticmethod
-    cdef SEGYTrace from_file_descriptor(FILE *fd)
-
-    cdef to_file_descriptor(self, FILE * fd)
-
-cdef class SEGY:
-    cdef:
-        # For file based collection
-        object file
-        bint file_owner
-        FILE *fd
-        spy_off_t orig_pos
-
-        # For in memory collection
-        list traces
-
-        # For an iterator passthrough
-        BaseTraceIterator iterator
-
-        int ntr
-
-    @staticmethod
-    cdef SEGY from_trace_iterator(BaseTraceIterator iterator)
-
-
-cdef class BaseTraceIterator:
-    cdef:
-        int i
-        int n_traces
-
-    cdef SEGYTrace next_trace(self)
