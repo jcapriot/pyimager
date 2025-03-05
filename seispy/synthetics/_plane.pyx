@@ -2,7 +2,7 @@
 # cython: linetrace=True
 
 from ..container cimport (
-    Trace, TraceCollection, BaseTraceIterator, spy_trace, spy_trace_header, new_trace
+    Trace, TraceCollection, BaseTraceIterator, spy_trace, spy_trace_header, new_trace, SPY_TX_GATHER
 )
 import numpy as np
 from libc.math cimport fabs
@@ -64,11 +64,13 @@ cdef class plane(BaseTraceIterator):
         self.offset = offset
         self.taper = taper
 
-        self.n_traces = ntr
+        self.hdr.n_traces = ntr
+        self.hdr.ensemble_type = SPY_TX_GATHER
+        self.hdr.uniform_traces = True
         self.n_planes = self.dips.shape[0]
 
     cdef Trace next_trace(self):
-        if self.i == self.n_traces:
+        if self.i == self.hdr.n_traces:
             raise StopIteration()
         cdef:
             spy_trace *tr = new_trace(self.nt)

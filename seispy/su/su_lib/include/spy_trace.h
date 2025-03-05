@@ -15,7 +15,6 @@ typedef struct SPY_TRACE_HEADER{
     size_t trace_id;                // trace identifier (along line)
     size_t ensemble_number;         // ensemble ID number
     size_t ensemble_trace_number;   // trace ID within ensemble
-    int ensemble_type;              // type of ensemble
     unsigned int sampling_unit;     // 0 = s, 1  = meters
     unsigned int sampling_domain;   // 0 (sample unit domain), 1 = sample unit fourier domain
 

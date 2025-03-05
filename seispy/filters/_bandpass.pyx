@@ -34,7 +34,7 @@ cdef class butterworth_bandpass(BaseTraceIterator):
         if isinstance(trace_iter, TraceCollection):
             trace_iter = trace_iter.__iter__()
         self.iter_in = trace_iter
-        self.n_traces = self.iter_in.n_traces
+        self.hdr = self.iter_in.hdr
         self.zerophase = zerophase
         self.low_cut = low_cut
         self.high_cut = high_cut

@@ -2,7 +2,7 @@
 # cython: linetrace=True
 
 from ..container cimport (
-    Trace, TraceCollection, BaseTraceIterator, spy_trace, spy_trace_header, new_trace
+    Trace, TraceCollection, BaseTraceIterator, spy_trace, spy_trace_header, new_trace, SPY_TX_GATHER
 )
 import numpy as np
 
@@ -16,7 +16,10 @@ cdef class spike(BaseTraceIterator):
 
     def __init__(self, size_t nt=64, size_t ntr=32, double dt=0.004, double offset=400, spikes=None):
         self.nt = nt
-        self.n_traces = ntr
+
+        self.hdr.n_traces = ntr
+        self.hdr.ensemble_type = SPY_TX_GATHER
+        self.hdr.uniform_traces = True
         self.dt = dt
         self.offset = offset
 
@@ -31,7 +34,7 @@ cdef class spike(BaseTraceIterator):
         self.spikes = np.require(spikes, dtype=np.int32, requirements='C')
 
     cdef Trace next_trace(self):
-        if self.i == self.n_traces:
+        if self.i == self.hdr.n_traces:
             raise StopIteration()
         cdef:
             spy_trace *tr = new_trace(self.nt)

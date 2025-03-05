@@ -1,14 +1,13 @@
 # cython: embedsignature=True, language_level=3
 # cython: linetrace=True
 import io
-import sys
 
-from cpython.bytes cimport PyBytes_FromStringAndSize
 from libc.stdio cimport FILE, fwrite, fread, SEEK_CUR
 from libc.stdlib cimport malloc, free
 from libc.string cimport memset, memcpy
 cimport cython
 cimport cpython.buffer as pybuf
+from cpython cimport PyObject
 
 from .io cimport PyFile_Dup, PyFile_DupClose, spy_off_t, spy_fseek
 
@@ -144,6 +143,7 @@ cdef class Trace:
         n_sample = tr.hdr.n_sample
         tr.data = <float *> malloc(sizeof(float)*n_sample)
         if tr.data is NULL:
+            free(tr)
             raise MemoryError("Unable to allocate trace data.")
         n_read = fread(tr.data, sizeof(float), n_sample, fd)
         if n_read != n_sample:
@@ -153,13 +153,51 @@ cdef class Trace:
         return Trace.from_trace(tr, True, True)
 
     cdef to_file_descriptor(self, FILE *fd):
-        cdef int n_write = fwrite(self.tr, SPY_TRC_HDR_SIZE, 1, fd)
+        cdef size_t n_write = fwrite(self.tr, SPY_TRC_HDR_SIZE, 1, fd)
         if n_write != 1:
             raise IOError("Error writing trace header to file.")
 
         n_write = fwrite(self.tr.data, sizeof(float), self.n_sample, fd)
         if n_write != self.n_sample:
             raise IOError("Error writing trace data to file.")
+
+    @staticmethod
+    cdef Trace from_bytes(const unsigned char[::1] bys):
+
+        if bys.shape[0] < SPY_TRC_HDR_SIZE:
+            raise ValueError(f"Incorrect number of bytes, expected at least {SPY_TRC_HDR_SIZE}, got {bys.shape[0]}.")
+
+        cdef:
+            spy_trace *tr = new_trace(0)
+            size_t n_sample
+        if tr is NULL:
+            raise MemoryError("Unable to allocate trace structure.")
+        # copy header bytes
+        memcpy(tr, &bys[0], SPY_TRC_HDR_SIZE)
+
+        n_sample = tr.hdr.n_sample
+
+        cdef size_t n_total_size = SPY_TRC_HDR_SIZE + sizeof(float)*n_sample
+        if bys.shape[0] != n_total_size:
+            free(tr)
+            raise ValueError(f"Incorrect number of bytes, expected {n_total_size}, got {bys.shape[0]}.")
+
+        tr.data = <float *> malloc(sizeof(float)*n_sample)
+        if tr.data is NULL:
+            free(tr)
+            raise MemoryError("Unable to allocate trace data.")
+        # copy data bytes
+        memcpy(tr.data, &bys[SPY_TRC_HDR_SIZE], sizeof(float)*n_sample)
+
+        return Trace.from_trace(tr, True, True)
+
+    cpdef unsigned char[::1] as_bytes(self):
+        cdef size_t data_size = sizeof(float) * self.n_sample
+        cdef size_t trace_size = SPY_TRC_HDR_SIZE + data_size
+        cdef unsigned char[::1] bys = <unsigned char[:trace_size]> malloc(trace_size)
+        memcpy(&bys[0], self.tr, SPY_TRC_HDR_SIZE)
+        memcpy(&bys[SPY_TRC_HDR_SIZE], self.tr.data, data_size)
+        return bys
 
     def __getbuffer__(self, Py_buffer *buffer, int flags):
         cdef Py_ssize_t itemsize = sizeof(float)
@@ -192,12 +230,90 @@ cdef class CollectionHeader:
         self.ensemble_type = 0
         self.uniform_traces = False
 
+    @classmethod
+    def get_cstruct_byte_size(cls):
+        return sizeof(size_t) + sizeof(int) + sizeof(bint)
+
+    @staticmethod
+    cdef CollectionHeader from_file_descriptor(FILE *fd):
+        cdef CollectionHeader hdr = CollectionHeader.__new__(CollectionHeader)
+        # cdef size_t n_read = fread(&hdr.n_traces, CollectionHeader.get_cstruct_byte_size(), 1, fd)
+        # if n_read != 1:
+        #     raise IOError("Error reading CollectionHeader bytes from file.")
+
+        cdef size_t n_read = fread(&hdr.n_traces, sizeof(hdr.n_traces), 1, fd)
+        if n_read != 1:
+            raise IOError("Error reading n_traces from file.")
+        n_read = fread(&hdr.ensemble_type, sizeof(hdr.ensemble_type), 1, fd)
+        if n_read != 1:
+            raise IOError("Error reading ensemble_type from file.")
+        n_read = fread(&hdr.uniform_traces, sizeof(hdr.uniform_traces), 1, fd)
+        if n_read != 1:
+            raise IOError("Error reading uniform_traces from file.")
+        return hdr
+
+    cdef to_file_descriptor(self, FILE * fd):
+        # cdef int n_write = fwrite(&self.n_traces, type(self).get_cstruct_byte_size(), 1, fd)
+        # if n_write != 1:
+        #     raise IOError("Error writing CollectionHeader to file.")
+
+        cdef size_t n_write = fwrite(&self.n_traces, sizeof(self.n_traces), 1, fd)
+        if n_write != 1:
+            raise IOError("Error writing n_traces to file.")
+
+        fwrite(&self.ensemble_type, sizeof(self.ensemble_type), 1, fd)
+        if n_write != 1:
+            raise IOError("Error writing ensemble_type to file.")
+
+        fwrite(&self.uniform_traces, sizeof(self.uniform_traces), 1, fd)
+        if n_write != 1:
+            raise IOError("Error writing uniform_traces to file.")
+
+    @staticmethod
+    cdef CollectionHeader from_bytes(const unsigned char[::1] bys):
+        cdef CollectionHeader hdr = CollectionHeader.__new__(CollectionHeader)
+        cdef size_t offset = 0
+        cdef size_t my_size = CollectionHeader.get_cstruct_byte_size()
+        if bys.shape[0] != my_size:
+            raise ValueError(f"Incorrect number of bytes, expected {my_size}, got {bys.shape[0]}.")
+
+        # memcpy(&hdr.n_traces, &bys[0], my_size)
+        memcpy(&hdr.n_traces, &bys[0], sizeof(hdr.n_traces))
+        offset += sizeof(hdr.n_traces)
+
+        memcpy(&hdr.ensemble_type, &bys[offset], sizeof(hdr.ensemble_type))
+        offset += sizeof(hdr.ensemble_type)
+
+        memcpy(&hdr.uniform_traces, &bys[offset], sizeof(hdr.uniform_traces))
+        offset += sizeof(hdr.uniform_traces)
+        return hdr
+
+    cpdef unsigned char[::1] as_bytes(self):
+        cdef:
+            size_t n_bytes = type(self).get_cstruct_byte_size()
+            unsigned char[::1] bys = <unsigned char[:n_bytes]> malloc(n_bytes)
+            size_t offset = 0
+
+        #memcpy(&bys[0], &self.n_traces, n_bytes)
+
+        memcpy(&bys[0], &self.n_traces, sizeof(self.n_traces))
+        offset += sizeof(self.n_traces)
+
+        memcpy(&bys[offset], &self.ensemble_type, sizeof(self.ensemble_type))
+        offset += sizeof(self.ensemble_type)
+
+        memcpy(&bys[offset], &self.uniform_traces, sizeof(self.uniform_traces))
+        offset += sizeof(self.uniform_traces)
+
+        return bys
+
 cdef class TraceCollection:
 
     def __cinit__(self):
         self.file = None
         self.traces = None
         self.iterator = None
+        self.hdr = CollectionHeader()
 
     def __init__(self, trace_data, d_sample, **kwargs):
         n_tr = len(trace_data)
@@ -218,6 +334,7 @@ cdef class TraceCollection:
     def from_file(cls, filename):
         cdef:
             Trace trace
+            CollectionHeader hdr
             FILE *fd
             bint file_owner
             spy_off_t orig_pos = 0
@@ -229,12 +346,13 @@ cdef class TraceCollection:
             ctx = open(os.fspath(filename), "rb")
 
         with ctx as f:
-            ntr = int.from_bytes(f.read(sizeof(ntr)), byteorder=sys.byteorder)
+            bts = f.read()
+            hdr = CollectionHeader.from_bytes(bts)
 
         cdef TraceCollection new_segy = TraceCollection.__new__(TraceCollection)
 
         new_segy.file = filename
-        new_segy.hdr.n_traces = ntr
+        new_segy.hdr = hdr
 
         return new_segy
 
@@ -242,7 +360,7 @@ cdef class TraceCollection:
     cdef TraceCollection from_trace_iterator(BaseTraceIterator iterator):
         cdef TraceCollection collect = TraceCollection.__new__(TraceCollection)
         collect.iterator = iterator
-        collect.hdr.n_trace = iterator.n_traces
+        collect.hdr = iterator.hdr
         return collect
 
     @property
@@ -259,9 +377,9 @@ cdef class TraceCollection:
 
     def __iter__(self):
         if self.on_disk:
-            return _FileTraceIterator(self.file, self.hdr.n_traces)
+            return _FileTraceIterator(self.file, self.hdr)
         elif self.in_memory:
-            return _MemoryTraceIterator(self.traces)
+            return _MemoryTraceIterator(self.traces, self.hdr)
         elif self.is_iterator:
             return self.iterator
         else:
@@ -300,7 +418,7 @@ cdef class TraceCollection:
         with ctx as file:
             fd, orig_pos = PyFile_Dup(file, "wb")
             try:
-                fwrite(&self.hdr.n_traces, sizeof(self.hdr.n_traces), 1, fd)
+                self.hdr.to_file_descriptor(fd)
                 for trace in self:
                     trace.to_file_descriptor(fd)
             finally:
@@ -325,10 +443,9 @@ cdef class TraceCollection:
             Trace trace
 
         with ctx as stream_ctx:
-            stream_ctx.write(PyBytes_FromStringAndSize(<char *> &self.hdr.n_traces, sizeof(self.hdr.n_traces)))
+            stream_ctx.write(self.hdr.as_bytes())
             for trace in self:
-                stream_ctx.write(PyBytes_FromStringAndSize(<char *> trace.tr, SPY_TRC_HDR_SIZE))
-                stream_ctx.write(PyBytes_FromStringAndSize(<char *> trace.tr.data, sizeof(float)*trace.n_sample))
+                stream_ctx.write(trace.as_bytes())
             stream_ctx.flush()
         if self.is_iterator:
             # the above will consume the iterator if it came from one.
@@ -336,11 +453,10 @@ cdef class TraceCollection:
             # otherwise, don't do anything to the underlying object
 
 
-
 cdef class BaseTraceIterator:
     def __cinit__(self):
         self.i = 0
-        self.n_traces = 0
+        self.hdr = CollectionHeader()
 
     cdef Trace next_trace(self):
         raise NotImplementedError(f"cdef next_trace is not implemented on {type(self)}.")
@@ -365,12 +481,12 @@ cdef class _MemoryTraceIterator(BaseTraceIterator):
     cdef:
         list traces
 
-    def __init__(self, list traces):
+    def __init__(self, list traces, CollectionHeader hdr):
         self.traces = traces
-        self.n_traces = len(traces)
+        self.hdr = hdr
 
     cdef Trace next_trace(self):
-        if self.i == self.n_traces:
+        if self.i == self.hdr.n_traces:
             raise StopIteration()
         cdef Trace out = self.traces[self.i]
         self.i += 1
@@ -388,7 +504,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
         self.fd = NULL
         self.owner = False
         self.file = None
-        self.n_traces = 0
+        self.hdr.n_traces = 0
 
     def __dealoc__(self):
         # make sure I get closed up when I'm garbage collected
@@ -405,7 +521,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
         # and clear my reference to the original
         self.file = None
 
-    def __init__(self, file, size_t n_traces):
+    def __init__(self, file, CollectionHeader hdr):
         if not hasattr(file, "read"):
             # open the file
             file = open(os.fspath(file), "rb")
@@ -413,19 +529,19 @@ cdef class _FileTraceIterator(BaseTraceIterator):
         else:
             self.owner = False
         self.file = file
-        self.n_traces = n_traces
+        self.hdr = hdr
 
         try:
             self.fd, self.orig_pos = PyFile_Dup(file, "rb")
             if self.owner:
                 # Advance fd to the start of the traces:
-                spy_fseek(self.fd, sizeof(int), SEEK_CUR)
+                spy_fseek(self.fd, type(hdr).get_cstruct_byte_size(), SEEK_CUR)
         except Exception as err:
             self._close_file()
             raise err
 
     cdef Trace next_trace(self):
-        if self.i == self.n_traces:
+        if self.i == self.hdr.n_traces:
             raise StopIteration()
         cdef Trace out
         try:
@@ -436,7 +552,7 @@ cdef class _FileTraceIterator(BaseTraceIterator):
             self._close_file()
             raise err
         self.i += 1
-        if self.i == self.n_traces:
+        if self.i == self.hdr.n_traces:
             # The next request will raise a StopIteration so close myself now.
             self._close_file()
         return out

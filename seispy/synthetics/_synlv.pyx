@@ -102,7 +102,6 @@ cdef class synlv(BaseTraceIterator):
         else:
             self.xo = np.require(xo, dtype=np.float32, flags='C')
         self.nxo = self.xo.shape[0]
-        self.n_traces = self.nxo * self.ns
 
         self.ref_points = np.empty(self.ns, dtype=np.float32)
         if self.shots:
@@ -172,6 +171,10 @@ cdef class synlv(BaseTraceIterator):
         self.ixsm = 0
         self.tracl = 0
 
+        self.hdr.n_traces = self.nxo * self.ns
+        self.hdr.ensemble_type = SPY_TX_GATHER if self.shots else SPY_COMMON_MIDPOINT
+        self.hdr.uniform_traces = True
+
         # from susynlv.c:
         # LHD = 20
         # NHD = 1 + 2 * LHD
@@ -198,11 +201,8 @@ cdef class synlv(BaseTraceIterator):
 
         xs = self.ref_points[self.ixsm]
         xo = self.xo[self.ixo]
-        if self.shots:
-            hdr.ensemble_type = SPY_TX_GATHER
-        else:
+        if not self.shots:
             xs -= 0.5 * xo
-            hdr.ensemble_type = SPY_COMMON_MIDPOINT
 
         xr = xs + xo
 

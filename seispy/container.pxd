@@ -1,3 +1,4 @@
+from aiohttp.web_routedef import static
 from libc.stdio cimport FILE
 from .io cimport spy_off_t
 cimport cython
@@ -14,6 +15,7 @@ cdef extern from "spy_trace.h" nogil:
         double mid_point[3]
         int line_id
         int trace_id
+        size_t ensemble_number
         size_t ensemble_trace_number    # trace ID within ensemble
         int sampling_unit               # 0 = s, 1  = meters
         int sampling_domain             # 0 (sample unit domain), 1 = sample_unit fourier domain
@@ -52,14 +54,26 @@ cdef class Trace:
 
     @staticmethod
     cdef Trace from_file_descriptor(FILE *fd)
-
     cdef to_file_descriptor(self, FILE * fd)
+
+    @staticmethod
+    cdef Trace from_bytes(const unsigned char[::1] bys)
+    cpdef unsigned char[::1] as_bytes(self)
+
 
 cdef class CollectionHeader:
     cdef:
         size_t n_traces
         int ensemble_type
         bint uniform_traces
+
+    @staticmethod
+    cdef CollectionHeader from_file_descriptor(FILE *fd)
+    cdef to_file_descriptor(self, FILE * fd)
+
+    @staticmethod
+    cdef CollectionHeader from_bytes(const unsigned char[::1] bys)
+    cpdef unsigned char[::1] as_bytes(self)
 
 cdef class TraceCollection:
     cdef:
@@ -83,6 +97,6 @@ cdef class TraceCollection:
 cdef class BaseTraceIterator:
     cdef:
         size_t i
-        size_t n_traces
+        CollectionHeader hdr
 
     cdef Trace next_trace(self)

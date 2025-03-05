@@ -48,7 +48,7 @@ py.extension_module(
     c_args: io_args,
     install: true,
     subdir: module_path,
-    dependencies: [py_dep, np_dep],
+    dependencies: [py_dep, np_dep, su_dep],
 )
 
 python_sources = []
